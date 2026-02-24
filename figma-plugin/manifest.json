@@ -1,0 +1,14 @@
+{
+  "name": "figma-cc",
+  "id": "1608161772119574372",
+  "api": "1.0.0",
+  "main": "code.js",
+  "capabilities": [],
+  "enableProposedApi": false,
+  "documentAccess": "dynamic-page",
+  "editorType": ["figma"],
+  "ui": "ui.html",
+  "networkAccess": {
+    "allowedDomains": ["https://*.ngrok-free.app", "https://*.ngrok-free.dev"]
+  }
+}

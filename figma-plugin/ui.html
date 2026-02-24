@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 12px;
+    color: #333;
+    padding: 12px;
+    background: #fff;
+  }
+  h2 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .section { margin-bottom: 12px; }
+  .label { font-size: 11px; font-weight: 500; color: #666; margin-bottom: 4px; }
+  .selection-info {
+    background: #f5f5f5;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: #555;
+  }
+  .context-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 48px;
+  }
+  .context-input:focus { outline: none; border-color: #18a0fb; }
+  .persona-list { list-style: none; }
+  .persona-list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+  }
+  .persona-list input[type="checkbox"] { accent-color: #18a0fb; }
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    background: #18a0fb;
+    color: #fff;
+    transition: background 0.15s;
+  }
+  .btn:hover { background: #0d8de5; }
+  .btn:disabled { background: #ccc; cursor: not-allowed; }
+  .btn-secondary {
+    background: transparent;
+    color: #18a0fb;
+    border: 1px solid #18a0fb;
+    margin-top: 8px;
+  }
+  .btn-secondary:hover { background: #f0f8ff; }
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #999;
+  }
+  .empty-state p { font-size: 13px; }
+  .loading {
+    text-align: center;
+    padding: 40px 20px;
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid #eee;
+    border-top-color: #18a0fb;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .feedback-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+  }
+  .feedback-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .feedback-header h3 { font-size: 13px; font-weight: 600; }
+  .score {
+    background: #18a0fb;
+    color: #fff;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .impression { font-size: 12px; color: #555; margin-bottom: 8px; font-style: italic; }
+  .issue {
+    background: #fff;
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .issue:hover { background: #f0f4ff; }
+  .issue-severity {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-right: 4px;
+  }
+  .severity-high { background: #fde8e8; color: #c53030; }
+  .severity-medium { background: #fef3cd; color: #856404; }
+  .severity-low { background: #d4edda; color: #155724; }
+  .positive { color: #2f855a; font-size: 11px; padding: 2px 0; }
+  .positive::before { content: "\2713 "; }
+  .error-state {
+    text-align: center;
+    padding: 20px;
+    color: #c53030;
+  }
+  .error-msg { background: #fde8e8; border-radius: 6px; padding: 10px; margin-bottom: 10px; font-size: 12px; }
+  .api-url-input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: monospace;
+    margin-bottom: 12px;
+  }
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .size-btns {
+    display: flex;
+    gap: 4px;
+  }
+  .size-btn {
+    padding: 2px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #666;
+  }
+  .size-btn.active {
+    background: #18a0fb;
+    color: #fff;
+    border-color: #18a0fb;
+  }
+  .annotation-container {
+    position: relative;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    overflow: visible;
+    background: #f0f0f0;
+  }
+  .annotation-container img {
+    border-radius: 6px;
+  }
+  .annotation-container img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .annotation-box {
+    position: absolute;
+    border: 2px dashed;
+    border-radius: 3px;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+    cursor: pointer;
+  }
+  .annotation-box:hover, .annotation-box.highlight {
+    opacity: 1;
+  }
+  .annotation-box .ann-label {
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 0 0 3px 0;
+    color: #fff;
+    line-height: 1.2;
+    z-index: 2;
+  }
+  .ann-tooltip-fixed {
+    display: none;
+    position: fixed;
+    background: #1a1a2e;
+    color: #f0f0f0;
+    font-size: 12px;
+    font-weight: 400;
+    padding: 10px 14px;
+    border-radius: 8px;
+    width: max-content;
+    max-width: 380px;
+    line-height: 1.5;
+    z-index: 9999;
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2);
+    letter-spacing: 0.01em;
+  }
+  .ann-tooltip-fixed.visible {
+    display: block;
+    animation: tooltipIn 0.12s ease-out;
+  }
+  @keyframes tooltipIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .annotation-box.severity-high { border-color: #c53030; background: rgba(197,48,48,0.08); }
+  .annotation-box.severity-high .ann-label { background: #c53030; }
+  .annotation-box.severity-medium { border-color: #b7791f; background: rgba(183,121,31,0.08); }
+  .annotation-box.severity-medium .ann-label { background: #b7791f; }
+  .annotation-box.severity-low { border-color: #276749; background: rgba(39,103,73,0.08); }
+  .annotation-box.severity-low .ann-label { background: #276749; }
+  .issue.highlight { outline: 2px solid #18a0fb; outline-offset: 1px; border-radius: 4px; }
+  .flow-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: visible;
+    margin-bottom: 8px;
+    padding-top: 40px;
+    padding-bottom: 4px;
+  }
+  .flow-strip .annotation-container {
+    flex: 0 0 auto;
+    width: 280px;
+    margin-bottom: 0;
+  }
+  .frame-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    color: #555;
+    background: #eef1f5;
+    padding: 3px 8px;
+    border-radius: 4px 4px 0 0;
+    border-bottom: 1px solid #dde0e4;
+  }
+  .layout-btn {
+    padding: 2px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #666;
+    margin-left: 8px;
+  }
+  .layout-btn.active {
+    background: #18a0fb;
+    color: #fff;
+    border-color: #18a0fb;
+  }
+
+  /* Two-column results layout */
+  .results-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  .results-2col .images-column {
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    overflow-y: auto;
+  }
+  .results-2col .feedback-column {
+    overflow-y: auto;
+  }
+
+  /* In 2-col mode, flow strip goes vertical instead of horizontal */
+  .results-2col .flow-strip {
+    flex-direction: column;
+    overflow-x: visible;
+    overflow-y: auto;
+    padding-top: 0;
+  }
+  .results-2col .flow-strip .annotation-container {
+    width: 100%;
+  }
+  .annotation-box.flash {
+    animation: flashHighlight 1.5s ease-out;
+  }
+  @keyframes flashHighlight {
+    0% { outline: 3px solid #18a0fb; outline-offset: 2px; }
+    100% { outline: 3px solid transparent; outline-offset: 2px; }
+  }
+
+  /* Persona tabs */
+  .persona-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 12px;
+    overflow-x: auto;
+  }
+  .persona-tab {
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #666;
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .persona-tab:hover {
+    color: #333;
+    background: #f8f9fa;
+  }
+  .persona-tab.active {
+    color: #18a0fb;
+    border-bottom-color: #18a0fb;
+  }
+  .persona-tab .tab-score {
+    display: inline-block;
+    background: #e2e8f0;
+    color: #555;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-left: 4px;
+  }
+  .persona-tab.active .tab-score {
+    background: #18a0fb;
+    color: #fff;
+  }
+  .tab-panel {
+    display: none;
+  }
+  .tab-panel.active {
+    display: block;
+  }
+</style>
+</head>
+<body>
+  <div class="header-row">
+    <h2 style="margin-bottom:0">Design Feedback</h2>
+    <div class="size-btns">
+      <button class="size-btn active" data-w="560" data-h="600">M</button>
+      <button class="size-btn" data-w="560" data-h="800">L</button>
+      <button class="size-btn" data-w="700" data-h="1000">XL</button>
+      <button class="size-btn" data-w="1200" data-h="1000">XXL</button>
+      <button class="layout-btn" id="layoutToggle" title="Toggle 2-column layout">2-col</button>
+    </div>
+  </div>
+
+  <!-- API URL config -->
+  <div class="section" id="apiUrlSection">
+    <div class="label">Backend URL</div>
+    <input type="text" class="api-url-input" id="apiUrl"
+           value="https://cristine-foraminiferal-domingo.ngrok-free.dev"
+           placeholder="https://your-ngrok-url.ngrok-free.dev">
+  </div>
+
+  <!-- Empty state -->
+  <div id="state-empty" class="empty-state">
+    <p>Select a frame to get started</p>
+  </div>
+
+  <!-- Ready state -->
+  <div id="state-ready" style="display:none;">
+    <div class="section">
+      <div class="label">Selected Frame</div>
+      <div class="selection-info" id="selectionInfo"></div>
+    </div>
+    <div class="section">
+      <div class="label">Context (optional)</div>
+      <textarea class="context-input" id="contextInput"
+                placeholder="e.g., Checkout page for an e-commerce app targeting young adults"></textarea>
+    </div>
+    <div class="section">
+      <div class="label">Get feedback from:</div>
+      <ul class="persona-list" id="personaList">
+        <li><label><input type="checkbox" value="first_time_user" checked> First-Time User</label></li>
+        <li><label><input type="checkbox" value="power_user" checked> Power User</label></li>
+        <li><label><input type="checkbox" value="accessibility_advocate"> Accessibility Advocate</label></li>
+        <li><label><input type="checkbox" value="brand_manager"> Brand Manager</label></li>
+        <li><label><input type="checkbox" value="skeptical_customer"> Skeptical Customer</label></li>
+      </ul>
+    </div>
+    <button class="btn" id="btnGetFeedback">Get Feedback</button>
+  </div>
+
+  <!-- Loading state -->
+  <div id="state-loading" style="display:none;">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Analyzing your design...</p>
+      <p style="color:#999; font-size:11px; margin-top:4px;">This may take 10-15 seconds</p>
+    </div>
+  </div>
+
+  <!-- Results state -->
+  <div id="state-results" style="display:none;">
+    <div id="feedbackCards"></div>
+    <button class="btn-secondary btn" id="btnNewFeedback">Get New Feedback</button>
+  </div>
+
+  <!-- Error state -->
+  <div id="state-error" style="display:none;">
+    <div class="error-state">
+      <div class="error-msg" id="errorMsg"></div>
+      <button class="btn" id="btnRetry">Retry</button>
+    </div>
+  </div>
+
+<div class="ann-tooltip-fixed" id="annTooltip"></div>
+
+<script>
+  // State management
+  let currentMetadata = null;
+  let currentImage = null;   // single frame base64
+  let currentFrames = null;  // multi-frame array [{image, metadata}, ...]
+  let twoColMode = false;
+  let allFeedbackStore = [];
+  let streamingAbort = null;
+
+  function showState(stateId) {
+    ['state-empty', 'state-ready', 'state-loading', 'state-results', 'state-error']
+      .forEach(id => document.getElementById(id).style.display = 'none');
+    document.getElementById(stateId).style.display = 'block';
+    // Hide backend URL except on initial screens
+    const urlSection = document.getElementById('apiUrlSection');
+    urlSection.style.display = (stateId === 'state-empty' || stateId === 'state-ready') ? 'block' : 'none';
+  }
+
+  // Handle messages from plugin main thread
+  onmessage = (event) => {
+    const msg = event.data.pluginMessage;
+    if (!msg) return;
+
+    if (msg.type === 'selection-cleared') {
+      currentMetadata = null;
+      currentImage = null;
+      currentFrames = null;
+      showState('state-empty');
+    }
+
+    if (msg.type === 'selection-info') {
+      currentMetadata = msg.metadata;
+      const info = document.getElementById('selectionInfo');
+      info.textContent = `"${msg.metadata.frameName}" (${msg.metadata.dimensions.width} x ${msg.metadata.dimensions.height})`;
+      showState('state-ready');
+    }
+
+    if (msg.type === 'multi-selection-info') {
+      currentMetadata = msg.frames; // array of {frameName, dimensions}
+      currentFrames = null;
+      currentImage = null;
+      const info = document.getElementById('selectionInfo');
+      const names = msg.frames.map(f => `"${f.frameName}"`).join(' → ');
+      info.textContent = `Flow: ${names} (${msg.frames.length} frames)`;
+      showState('state-ready');
+    }
+
+    if (msg.type === 'export-result') {
+      currentImage = msg.image;
+      currentFrames = null;
+      sendFeedbackRequest();
+    }
+
+    if (msg.type === 'export-result-multi') {
+      currentFrames = msg.frames;
+      currentImage = null;
+      sendFeedbackRequest();
+    }
+
+    if (msg.type === 'export-error') {
+      showState('state-error');
+      document.getElementById('errorMsg').textContent = `Export failed: ${msg.error}`;
+    }
+  };
+
+  // Get selected personas
+  function getSelectedPersonas() {
+    return Array.from(document.querySelectorAll('#personaList input:checked'))
+      .map(cb => cb.value);
+  }
+
+  // Get Feedback button
+  document.getElementById('btnGetFeedback').onclick = () => {
+    const personas = getSelectedPersonas();
+    if (personas.length === 0) {
+      alert('Select at least one persona');
+      return;
+    }
+    showState('state-loading');
+    // Request image export from main thread
+    parent.postMessage({ pluginMessage: { type: 'export-selection' } }, '*');
+  };
+
+  // Send feedback request to API (SSE streaming)
+  async function sendFeedbackRequest() {
+    allFeedbackStore = [];
+    const apiUrl = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+    const personas = getSelectedPersonas();
+    const context = document.getElementById('contextInput').value.trim() || null;
+
+    const reqBody = currentFrames
+      ? {
+          frames: currentFrames.map(f => ({
+            image: f.image,
+            metadata: {
+              frame_name: f.metadata.frameName,
+              dimensions: f.metadata.dimensions,
+              text_content: f.metadata.textContent || [],
+              colors: f.metadata.colors || [],
+              component_names: f.metadata.componentNames || [],
+            },
+          })),
+          personas: personas,
+          context: context,
+        }
+      : {
+          image: currentImage,
+          metadata: {
+            frame_name: currentMetadata.frameName,
+            dimensions: currentMetadata.dimensions,
+            text_content: currentMetadata.textContent || [],
+            colors: currentMetadata.colors || [],
+            component_names: currentMetadata.componentNames || [],
+          },
+          personas: personas,
+          context: context,
+        };
+
+    try {
+      streamingAbort = new AbortController();
+      const resp = await fetch(`${apiUrl}/api/feedback/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify(reqBody),
+        signal: streamingAbort.signal,
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || `HTTP ${resp.status}`);
+      }
+
+      // Show spinner + progress in results area
+      const container = document.getElementById('feedbackCards');
+      container.innerHTML = '';
+      const progressEl = document.createElement('div');
+      progressEl.id = 'streamProgress';
+      progressEl.style.cssText = 'text-align:center;padding:20px;';
+      progressEl.innerHTML = '<div class="spinner"></div>'
+        + `<p style="color:#999;font-size:11px;">Analyzing with ${personas.length} persona(s)...</p>`;
+      container.appendChild(progressEl);
+
+      const tabBar = document.createElement('div');
+      tabBar.className = 'persona-tabs';
+      tabBar.id = 'personaTabs';
+      tabBar.style.display = 'none'; // hidden until first result
+      container.appendChild(tabBar);
+
+      const loadingTab = document.createElement('span');
+      loadingTab.id = 'loadingTabIndicator';
+      loadingTab.style.cssText = 'display:none;padding:6px 14px;font-size:11px;color:#999;white-space:nowrap;';
+      loadingTab.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin:0 6px 0 0;"></span> Loading...';
+      tabBar.appendChild(loadingTab);
+
+      const panelsContainer = document.createElement('div');
+      panelsContainer.id = 'personaPanels';
+      container.appendChild(panelsContainer);
+
+      showState('state-results');
+
+      // Show cancel button during streaming
+      const actionBtn = document.getElementById('btnNewFeedback');
+      actionBtn.textContent = 'Cancel';
+      actionBtn.className = 'btn';
+      actionBtn.style.cssText = 'background:#c53030;margin-top:8px;';
+
+      const allFeedback = [];
+      let failedCount = 0;
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep incomplete line in buffer
+
+        let currentEventType = null;
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEventType = line.slice(7).trim();
+            continue;
+          }
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.slice(6);
+            if (jsonStr === '{}') { currentEventType = null; continue; }
+
+            if (currentEventType === 'persona-error') {
+              try {
+                const errData = JSON.parse(jsonStr);
+                failedCount++;
+                // Show error tab
+                const panelId = `panel-err-${failedCount}`;
+                const tab = document.createElement('button');
+                tab.className = 'persona-tab';
+                tab.dataset.panelId = panelId;
+                tab.innerHTML = `<span style="color:#c53030">${esc(errData.persona)}</span> <span class="tab-score" style="background:#fde8e8;color:#c53030">Error</span>`;
+                tab.onclick = () => switchTab(tab);
+                tabBar.insertBefore(tab, loadingTab);
+
+                const panel = document.createElement('div');
+                panel.className = 'tab-panel';
+                panel.id = panelId;
+                panel.innerHTML = `<div class="error-msg">${esc(errData.persona)} failed: ${esc(errData.detail)}</div>`;
+                panelsContainer.appendChild(panel);
+              } catch (e) {}
+              // Update remaining count
+              const remaining = personas.length - allFeedback.length - failedCount;
+              if (remaining > 0) {
+                loadingTab.innerHTML = `<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin:0 6px 0 0;"></span> ${remaining} more...`;
+              } else {
+                loadingTab.style.display = 'none';
+              }
+              currentEventType = null;
+              continue;
+            }
+
+            // Regular data event (successful persona feedback)
+            try {
+              const fb = JSON.parse(jsonStr);
+              allFeedback.push(fb);
+              allFeedbackStore.push(fb);
+
+              if (allFeedback.length === 1) {
+                // First result: remove main spinner, show tab bar
+                progressEl.remove();
+                tabBar.style.display = 'flex';
+              }
+
+              const remaining = personas.length - allFeedback.length - failedCount;
+              if (remaining > 0) {
+                loadingTab.style.display = 'inline-flex';
+                loadingTab.innerHTML = `<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin:0 6px 0 0;"></span> ${remaining} more...`;
+              } else {
+                loadingTab.style.display = 'none';
+              }
+
+              // Create tab
+              const panelId = `panel-${allFeedback.length - 1}`;
+              const tab = document.createElement('button');
+              tab.className = 'persona-tab' + (allFeedback.length === 1 ? ' active' : '');
+              tab.dataset.panelId = panelId;
+              tab.innerHTML = `${esc(fb.persona_label)} <span class="tab-score">${fb.score}/10</span>`;
+              tab.onclick = () => switchTab(tab);
+              tabBar.insertBefore(tab, loadingTab);
+
+              // Create panel
+              const panel = document.createElement('div');
+              panel.className = 'tab-panel' + (allFeedback.length === 1 ? ' active' : '');
+              panel.id = panelId;
+              renderSingleFeedbackCard(panel, fb);
+              panelsContainer.appendChild(panel);
+            } catch (e) {}
+            currentEventType = null;
+          }
+          if (line.startsWith('event: done')) {
+            loadingTab.style.display = 'none';
+            if (progressEl.parentNode) progressEl.remove();
+          }
+        }
+      }
+
+      // Streaming complete — restore button
+      streamingAbort = null;
+      const actionBtn2 = document.getElementById('btnNewFeedback');
+      actionBtn2.textContent = 'Get New Feedback';
+      actionBtn2.className = 'btn-secondary btn';
+      actionBtn2.style.cssText = '';
+
+      if (allFeedback.length === 0) {
+        throw new Error('No feedback received from any persona');
+      }
+    } catch (error) {
+      streamingAbort = null;
+      const actionBtn3 = document.getElementById('btnNewFeedback');
+      actionBtn3.textContent = 'Get New Feedback';
+      actionBtn3.className = 'btn-secondary btn';
+      actionBtn3.style.cssText = '';
+      if (error.name === 'AbortError') {
+        // User cancelled, go back to ready state
+        showState('state-ready');
+        return;
+      }
+      showState('state-error');
+      document.getElementById('errorMsg').textContent = error.message;
+    }
+  }
+
+  // Sanitize strings before inserting into HTML to prevent XSS
+  function esc(str) {
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
+  // Render a single feedback card into the container
+  function renderSingleFeedbackCard(container, fb) {
+    const card = document.createElement('div');
+    card.className = 'feedback-card';
+
+    // Determine image sources for annotation overlay
+    const images = currentFrames
+      ? currentFrames.map(f => f.image)
+      : currentImage ? [currentImage] : [];
+    const frameNames = currentFrames
+      ? currentFrames.map(f => f.metadata.frameName)
+      : currentMetadata && currentMetadata.frameName ? [currentMetadata.frameName] : [];
+
+    let annotationHtml = '';
+    if (images.length > 0 && fb.annotations && fb.annotations.length > 0) {
+      const isFlow = images.length > 1;
+
+      let framesHtml = images.map((img, frameIdx) => {
+        // Get annotations for this frame
+        const frameAnns = fb.annotations.filter(a => (a.frame_index || 0) === frameIdx);
+        const sorted = frameAnns.map((ann, i) => ({ ann, i }));
+        sorted.sort((a, b) => (b.ann.width_pct * b.ann.height_pct) - (a.ann.width_pct * a.ann.height_pct));
+
+        let boxesHtml = sorted.map((entry, renderIdx) => {
+          const { ann } = entry;
+          const issue = fb.issues[ann.issue_index];
+          const severity = issue ? issue.severity : 'medium';
+          const area = issue ? esc(issue.area) : esc(ann.label);
+          const desc = issue ? esc(issue.description) : '';
+          const num = ann.issue_index + 1;
+          const zIndex = renderIdx + 1;
+          const sug = issue ? esc(issue.suggestion) : '';
+          return `<div class="annotation-box severity-${esc(severity)}"
+                       data-issue-index="${ann.issue_index}"
+                       data-tip-num="${num}" data-tip-sev="${esc(severity)}" data-tip-area="${area}" data-tip-desc="${desc}" data-tip-sug="${sug}"
+                       style="left:${ann.x_pct}%;top:${ann.y_pct}%;width:${ann.width_pct}%;height:${ann.height_pct}%;z-index:${zIndex}">
+                    <span class="ann-label">${num}</span>
+                  </div>`;
+        }).join('');
+
+        const label = frameNames[frameIdx]
+          ? `<span class="frame-label">${frameIdx + 1}. ${esc(frameNames[frameIdx])}</span>`
+          : `<span class="frame-label">${frameIdx + 1}.</span>`;
+
+        return `<div class="annotation-container">
+                  ${label}
+                  <img src="data:image/png;base64,${img}" alt="Frame ${frameIdx + 1}">
+                  ${boxesHtml}
+                </div>`;
+      }).join('');
+
+      annotationHtml = isFlow ? `<div class="flow-strip">${framesHtml}</div>` : framesHtml;
+    } else if (images.length > 0) {
+      // No annotations but we have images — still show them
+      const isFlow = images.length > 1;
+      let framesHtml = images.map((img, frameIdx) => {
+        const label = frameNames[frameIdx]
+          ? `<span class="frame-label">${frameIdx + 1}. ${esc(frameNames[frameIdx])}</span>`
+          : `<span class="frame-label">${frameIdx + 1}.</span>`;
+        return `<div class="annotation-container">
+                  ${label}
+                  <img src="data:image/png;base64,${img}" alt="Frame ${frameIdx + 1}">
+                </div>`;
+      }).join('');
+      annotationHtml = isFlow ? `<div class="flow-strip">${framesHtml}</div>` : framesHtml;
+    }
+
+    let issuesHtml = fb.issues.map((issue, idx) => `
+      <div class="issue" data-issue-index="${idx}">
+        <span style="font-size:10px;font-weight:700;color:#18a0fb;margin-right:3px;">${idx + 1}</span>
+        <span class="issue-severity severity-${esc(issue.severity)}">${esc(issue.severity)}</span>
+        <strong>${esc(issue.area)}:</strong> ${esc(issue.description)}
+        <br><em style="color:#666">&rarr; ${esc(issue.suggestion)}</em>
+      </div>
+    `).join('');
+
+    let positivesHtml = fb.positives.map(p => `<div class="positive">${esc(p)}</div>`).join('');
+
+    card.innerHTML = `
+      <div class="feedback-header">
+        <h3>${esc(fb.persona_label)}</h3>
+        <span class="score">${esc(fb.score)}/10</span>
+      </div>
+      ${annotationHtml}
+      <div class="impression">"${esc(fb.overall_impression)}"</div>
+      ${issuesHtml}
+      ${positivesHtml}
+    `;
+
+    // Wire up hover interactions
+    card.querySelectorAll('.issue[data-issue-index]').forEach(issueEl => {
+      const idx = issueEl.dataset.issueIndex;
+      issueEl.addEventListener('mouseenter', () => {
+        card.querySelectorAll(`.annotation-box[data-issue-index="${idx}"]`)
+            .forEach(b => b.classList.add('highlight'));
+      });
+      issueEl.addEventListener('mouseleave', () => {
+        card.querySelectorAll('.annotation-box.highlight')
+            .forEach(b => b.classList.remove('highlight'));
+      });
+      issueEl.addEventListener('click', () => {
+        const idx = issueEl.dataset.issueIndex;
+        // In 2-col mode, look in the shared images column; in 1-col mode, look in the card
+        const searchScope = twoColMode
+          ? document.querySelector('.images-column') || card
+          : card;
+        const boxes = searchScope.querySelectorAll(`.annotation-box[data-issue-index="${idx}"]`);
+        if (boxes.length > 0) {
+          const target = boxes[0];
+          // If inside a flow strip, scroll the strip horizontally to show the right frame
+          const strip = target.closest('.flow-strip');
+          if (strip) {
+            const annContainer = target.closest('.annotation-container');
+            if (annContainer) {
+              strip.scrollTo({ left: annContainer.offsetLeft - 8, behavior: 'smooth' });
+            }
+          }
+          // Scroll the annotation into view
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          // Flash highlight
+          target.classList.add('flash');
+          target.addEventListener('animationend', () => {
+            target.classList.remove('flash');
+          }, { once: true });
+        }
+      });
+    });
+
+    card.querySelectorAll('.annotation-box[data-issue-index]').forEach(boxEl => {
+      const idx = boxEl.dataset.issueIndex;
+      boxEl.addEventListener('mouseenter', () => {
+        card.querySelectorAll(`.issue[data-issue-index="${idx}"]`)
+            .forEach(i => i.classList.add('highlight'));
+      });
+      boxEl.addEventListener('mouseleave', () => {
+        card.querySelectorAll('.issue.highlight')
+            .forEach(i => i.classList.remove('highlight'));
+      });
+    });
+
+    // Wire up fixed tooltip for annotation boxes in this card
+    const tooltip = document.getElementById('annTooltip');
+    card.querySelectorAll('.annotation-box[data-tip-num]').forEach(box => {
+      box.addEventListener('mouseenter', (e) => {
+        const sevColors = { high: '#e53e3e', medium: '#d69e2e', low: '#38a169' };
+        const sev = box.dataset.tipSev;
+        const color = sevColors[sev] || '#888';
+        let html = `<span style="display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;text-transform:uppercase">${sev}</span>`
+          + `<strong style="color:#fff;font-size:12px">#${box.dataset.tipNum} ${box.dataset.tipArea}</strong>`
+          + `<div style="margin-top:4px;color:#ccc">${box.dataset.tipDesc}</div>`;
+        if (box.dataset.tipSug) {
+          html += `<div style="margin-top:4px;color:#7ecbff;font-style:italic">\u2192 ${box.dataset.tipSug}</div>`;
+        }
+        tooltip.innerHTML = html;
+        tooltip.classList.add('visible');
+        positionTooltip(e, box);
+      });
+      box.addEventListener('mousemove', (e) => {
+        positionTooltip(e, box);
+      });
+      box.addEventListener('mouseleave', () => {
+        tooltip.classList.remove('visible');
+      });
+    });
+
+    container.appendChild(card);
+  }
+
+  function switchTab(activeTab) {
+    // Deactivate all tabs and panels
+    document.querySelectorAll('.persona-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    // Activate selected
+    activeTab.classList.add('active');
+    const panel = document.getElementById(activeTab.dataset.panelId);
+    if (panel) panel.classList.add('active');
+
+    // In 2-col mode, update annotation boxes on shared images for the active persona
+    if (twoColMode) {
+      const panelId = activeTab.dataset.panelId;
+      const match = panelId && panelId.match(/^panel-(\d+)$/);
+      if (match) {
+        const idx = parseInt(match[1]);
+        if (allFeedbackStore[idx]) {
+          updateImageAnnotations(allFeedbackStore[idx]);
+        }
+      }
+    }
+  }
+
+  // Update annotation boxes on the shared images column for a given persona's feedback
+  function updateImageAnnotations(fb, imagesCol) {
+    if (!imagesCol) imagesCol = document.querySelector('.images-column');
+    if (!imagesCol) return;
+
+    // Remove existing annotation boxes
+    imagesCol.querySelectorAll('.annotation-box').forEach(b => b.remove());
+
+    if (!fb.annotations || fb.annotations.length === 0) return;
+
+    const containers = imagesCol.querySelectorAll('.annotation-container');
+
+    // Sort by area (largest first) so smaller boxes render on top
+    const sorted = fb.annotations.map((ann, i) => ({ ann, i }));
+    sorted.sort((a, b) => (b.ann.width_pct * b.ann.height_pct) - (a.ann.width_pct * a.ann.height_pct));
+
+    sorted.forEach((entry, renderIdx) => {
+      const { ann } = entry;
+      const frameIdx = ann.frame_index || 0;
+      const container = containers[frameIdx];
+      if (!container) return;
+
+      const issue = fb.issues[ann.issue_index];
+      const severity = issue ? issue.severity : 'medium';
+      const area = issue ? esc(issue.area) : esc(ann.label);
+      const desc = issue ? esc(issue.description) : '';
+      const num = ann.issue_index + 1;
+      const sug = issue ? esc(issue.suggestion) : '';
+      const zIndex = renderIdx + 1;
+
+      const box = document.createElement('div');
+      box.className = `annotation-box severity-${severity}`;
+      box.dataset.issueIndex = String(ann.issue_index);
+      box.dataset.tipNum = String(num);
+      box.dataset.tipSev = severity;
+      box.dataset.tipArea = area;
+      box.dataset.tipDesc = desc;
+      box.dataset.tipSug = sug;
+      box.style.cssText = `left:${ann.x_pct}%;top:${ann.y_pct}%;width:${ann.width_pct}%;height:${ann.height_pct}%;z-index:${zIndex}`;
+      box.innerHTML = `<span class="ann-label">${num}</span>`;
+
+      container.appendChild(box);
+    });
+
+    // Wire tooltips for the new annotation boxes
+    const tooltip = document.getElementById('annTooltip');
+    imagesCol.querySelectorAll('.annotation-box[data-tip-num]').forEach(box => {
+      box.addEventListener('mouseenter', (e) => {
+        const sevColors = { high: '#e53e3e', medium: '#d69e2e', low: '#38a169' };
+        const sev = box.dataset.tipSev;
+        const color = sevColors[sev] || '#888';
+        let html = `<span style="display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;text-transform:uppercase">${sev}</span>`
+          + `<strong style="color:#fff;font-size:12px">#${box.dataset.tipNum} ${box.dataset.tipArea}</strong>`
+          + `<div style="margin-top:4px;color:#ccc">${box.dataset.tipDesc}</div>`;
+        if (box.dataset.tipSug) {
+          html += `<div style="margin-top:4px;color:#7ecbff;font-style:italic">\u2192 ${box.dataset.tipSug}</div>`;
+        }
+        tooltip.innerHTML = html;
+        tooltip.classList.add('visible');
+        positionTooltip(e, box);
+      });
+      box.addEventListener('mousemove', (e) => positionTooltip(e, box));
+      box.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+    });
+
+    // Wire box hover → highlight corresponding issue in the active panel
+    imagesCol.querySelectorAll('.annotation-box[data-issue-index]').forEach(boxEl => {
+      const idx = boxEl.dataset.issueIndex;
+      boxEl.addEventListener('mouseenter', () => {
+        const activePanel = document.querySelector('.tab-panel.active');
+        if (activePanel) {
+          activePanel.querySelectorAll(`.issue[data-issue-index="${idx}"]`)
+            .forEach(i => i.classList.add('highlight'));
+        }
+      });
+      boxEl.addEventListener('mouseleave', () => {
+        const activePanel = document.querySelector('.tab-panel.active');
+        if (activePanel) {
+          activePanel.querySelectorAll('.issue.highlight')
+            .forEach(i => i.classList.remove('highlight'));
+        }
+      });
+    });
+  }
+
+  // Render feedback cards
+  function renderFeedback(feedbackList) {
+    const container = document.getElementById('feedbackCards');
+    container.innerHTML = '';
+
+    if (twoColMode && feedbackList.length > 0) {
+      // 2-col: shared images on left, tabbed feedback on right
+      const wrapper = document.createElement('div');
+      wrapper.className = 'results-2col';
+
+      const imagesCol = document.createElement('div');
+      imagesCol.className = 'images-column';
+
+      const feedbackCol = document.createElement('div');
+      feedbackCol.className = 'feedback-column';
+
+      // Build shared images (no annotations — added per active tab)
+      const images = currentFrames
+        ? currentFrames.map(f => f.image)
+        : currentImage ? [currentImage] : [];
+      const frameNames = currentFrames
+        ? currentFrames.map(f => f.metadata.frameName)
+        : currentMetadata && currentMetadata.frameName ? [currentMetadata.frameName] : [];
+      const isFlow = images.length > 1;
+
+      let framesHtml = images.map((img, frameIdx) => {
+        const label = frameNames[frameIdx]
+          ? `<span class="frame-label">${frameIdx + 1}. ${esc(frameNames[frameIdx])}</span>`
+          : `<span class="frame-label">${frameIdx + 1}.</span>`;
+        return `<div class="annotation-container">
+                  ${label}
+                  <img src="data:image/png;base64,${img}" alt="Frame ${frameIdx + 1}">
+                </div>`;
+      }).join('');
+
+      imagesCol.innerHTML = isFlow ? `<div class="flow-strip">${framesHtml}</div>` : framesHtml;
+
+      // Overlay the first persona's annotations
+      updateImageAnnotations(feedbackList[0], imagesCol);
+
+      // Build tabs in right column
+      const tabBar = document.createElement('div');
+      tabBar.className = 'persona-tabs';
+      feedbackCol.appendChild(tabBar);
+
+      const panelsContainer = document.createElement('div');
+      feedbackCol.appendChild(panelsContainer);
+
+      feedbackList.forEach((fb, idx) => {
+        const panelId = `panel-${idx}`;
+        const tab = document.createElement('button');
+        tab.className = 'persona-tab' + (idx === 0 ? ' active' : '');
+        tab.dataset.panelId = panelId;
+        tab.innerHTML = `${esc(fb.persona_label)} <span class="tab-score">${fb.score}/10</span>`;
+        tab.onclick = () => switchTab(tab);
+        tabBar.appendChild(tab);
+
+        const panel = document.createElement('div');
+        panel.className = 'tab-panel' + (idx === 0 ? ' active' : '');
+        panel.id = panelId;
+        // Render card without images (they're in the shared panel)
+        const card = document.createElement('div');
+        card.className = 'feedback-card';
+        let issuesHtml = fb.issues.map((issue, i) => `
+          <div class="issue" data-issue-index="${i}">
+            <span style="font-size:10px;font-weight:700;color:#18a0fb;margin-right:3px;">${i + 1}</span>
+            <span class="issue-severity severity-${esc(issue.severity)}">${esc(issue.severity)}</span>
+            <strong>${esc(issue.area)}:</strong> ${esc(issue.description)}
+            <br><em style="color:#666">&rarr; ${esc(issue.suggestion)}</em>
+          </div>
+        `).join('');
+        let positivesHtml = fb.positives.map(p => `<div class="positive">${esc(p)}</div>`).join('');
+        card.innerHTML = `
+          <div class="feedback-header">
+            <h3>${esc(fb.persona_label)}</h3>
+            <span class="score">${esc(fb.score)}/10</span>
+          </div>
+          <div class="impression">"${esc(fb.overall_impression)}"</div>
+          ${issuesHtml}
+          ${positivesHtml}
+        `;
+
+        // Wire hover to shared images panel
+        card.querySelectorAll('.issue[data-issue-index]').forEach(issueEl => {
+          const i = issueEl.dataset.issueIndex;
+          issueEl.addEventListener('mouseenter', () => {
+            imagesCol.querySelectorAll(`.annotation-box[data-issue-index="${i}"]`)
+              .forEach(b => b.classList.add('highlight'));
+          });
+          issueEl.addEventListener('mouseleave', () => {
+            imagesCol.querySelectorAll('.annotation-box.highlight')
+              .forEach(b => b.classList.remove('highlight'));
+          });
+          issueEl.addEventListener('click', () => {
+            const boxes = imagesCol.querySelectorAll(`.annotation-box[data-issue-index="${i}"]`);
+            if (boxes.length > 0) {
+              const target = boxes[0];
+              const strip = target.closest('.flow-strip');
+              if (strip) {
+                const annContainer = target.closest('.annotation-container');
+                if (annContainer) strip.scrollTo({ left: annContainer.offsetLeft - 8, behavior: 'smooth' });
+              }
+              target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              target.classList.add('flash');
+              target.addEventListener('animationend', () => target.classList.remove('flash'), { once: true });
+            }
+          });
+        });
+
+        panel.appendChild(card);
+        panelsContainer.appendChild(panel);
+      });
+
+      wrapper.appendChild(imagesCol);
+      wrapper.appendChild(feedbackCol);
+      container.appendChild(wrapper);
+    } else {
+      // 1-col: tabbed layout with images per card
+      const tabBar = document.createElement('div');
+      tabBar.className = 'persona-tabs';
+      container.appendChild(tabBar);
+
+      const panelsContainer = document.createElement('div');
+      container.appendChild(panelsContainer);
+
+      feedbackList.forEach((fb, idx) => {
+        const panelId = `panel-${idx}`;
+        const tab = document.createElement('button');
+        tab.className = 'persona-tab' + (idx === 0 ? ' active' : '');
+        tab.dataset.panelId = panelId;
+        tab.innerHTML = `${esc(fb.persona_label)} <span class="tab-score">${fb.score}/10</span>`;
+        tab.onclick = () => switchTab(tab);
+        tabBar.appendChild(tab);
+
+        const panel = document.createElement('div');
+        panel.className = 'tab-panel' + (idx === 0 ? ' active' : '');
+        panel.id = panelId;
+        renderSingleFeedbackCard(panel, fb);
+        panelsContainer.appendChild(panel);
+      });
+    }
+  }
+
+  function positionTooltip(e, box) {
+    const tooltip = document.getElementById('annTooltip');
+    const rect = box.getBoundingClientRect();
+    // Position above the annotation box, aligned to its left edge
+    let left = rect.left;
+    let top = rect.top - tooltip.offsetHeight - 6;
+    // If it would go above the viewport, show below instead
+    if (top < 4) {
+      top = rect.bottom + 6;
+    }
+    // Keep within horizontal bounds
+    const maxLeft = window.innerWidth - tooltip.offsetWidth - 8;
+    if (left > maxLeft) left = maxLeft;
+    if (left < 4) left = 4;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  }
+
+  // New Feedback / Retry buttons
+  document.getElementById('btnNewFeedback').onclick = () => {
+    if (streamingAbort) {
+      streamingAbort.abort();
+      return;
+    }
+    showState('state-ready');
+  };
+  document.getElementById('btnRetry').onclick = () => {
+    showState('state-loading');
+    if (currentImage || currentFrames) {
+      sendFeedbackRequest();
+    } else {
+      parent.postMessage({ pluginMessage: { type: 'export-selection' } }, '*');
+    }
+  };
+
+  // Size selector buttons
+  document.querySelectorAll('.size-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const w = parseInt(btn.dataset.w);
+      const h = parseInt(btn.dataset.h);
+      parent.postMessage({ pluginMessage: { type: 'resize', width: w, height: h } }, '*');
+    };
+  });
+
+  // Layout toggle (1-col / 2-col)
+  document.getElementById('layoutToggle').onclick = () => {
+    twoColMode = !twoColMode;
+    const btn = document.getElementById('layoutToggle');
+    btn.classList.toggle('active', twoColMode);
+    btn.textContent = twoColMode ? '1-col' : '2-col';
+    // Re-layout if results are visible
+    const resultsEl = document.getElementById('state-results');
+    if (resultsEl.style.display !== 'none') {
+      applyLayout();
+    }
+  };
+
+  function applyLayout() {
+    if (allFeedbackStore.length > 0) {
+      renderFeedback(allFeedbackStore);
+    }
+  }
+</script>
+
+</body>
+</html>

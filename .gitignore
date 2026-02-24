@@ -1,0 +1,17 @@
+# Node
+*.log
+*.log.*
+node_modules
+package-lock.json
+
+out/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# OS
+.DS_Store
