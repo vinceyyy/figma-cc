@@ -3,21 +3,22 @@ import base64
 import io
 import json
 import logging
-import tempfile
 from collections.abc import AsyncIterator
-from pathlib import Path
 
-from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 from PIL import Image
+from pydantic_ai import Agent, BinaryContent
 
+from api.config import settings
 from api.models.response import PersonaFeedback
 from api.personas.definitions import Persona
 
 logger = logging.getLogger(__name__)
 
-# Max dimension (longest side) for images sent to the agent.
-# Keeps PNGs under ~500KB to avoid the 1MB JSON buffer limit in Agent SDK.
 MAX_IMAGE_DIMENSION = 1500
+
+feedback_agent = Agent(
+    output_type=PersonaFeedback,
+)
 
 
 def _downscale_if_needed(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION) -> bytes:
@@ -25,7 +26,12 @@ def _downscale_if_needed(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION)
     img = Image.open(io.BytesIO(image_bytes))
     w, h = img.size
     if max(w, h) <= max_dim:
-        return image_bytes
+        # Still convert to JPEG for consistency
+        if img.mode in ("RGBA", "LA", "P"):
+            img = img.convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=85)
+        return buf.getvalue()
     scale = max_dim / max(w, h)
     new_size = (int(w * scale), int(h * scale))
     img = img.resize(new_size, Image.LANCZOS)
@@ -37,10 +43,71 @@ def _downscale_if_needed(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION)
     return buf.getvalue()
 
 
-def build_feedback_schema() -> dict:
-    """Build the output_format for structured PersonaFeedback output."""
-    schema = PersonaFeedback.model_json_schema()
-    return {"type": "json_schema", "schema": schema}
+def _build_prompt(persona: Persona, frames: list[dict], context: str | None) -> str:
+    """Build the text portion of the user prompt."""
+    is_flow = len(frames) > 1
+
+    if is_flow:
+        parts = [
+            "You are analyzing a user flow consisting of multiple screens. "
+            "Analyze the complete user journey.\n"
+        ]
+        for idx, frame in enumerate(frames):
+            meta = frame["metadata"]
+            parts.append(
+                f"Frame {idx + 1}: \"{meta['frame_name']}\" "
+                f"({meta['dimensions']['width']}x{meta['dimensions']['height']})"
+            )
+        parts.append(
+            "\nThe screenshots are attached in order. Focus on:\n"
+            "- Transitions between screens (is the flow logical?)\n"
+            "- Visual consistency across screens\n"
+            "- Overall user journey and experience\n"
+            "- Individual screen issues that affect the flow"
+        )
+    else:
+        metadata_str = json.dumps(frames[0]["metadata"], indent=2)
+        parts = [
+            "Analyze the attached design screenshot.",
+            f"\nDesign metadata:\n{metadata_str}",
+        ]
+
+    if context:
+        parts.append(f"\nDesigner's context: {context}")
+
+    parts.append(
+        f"\nProvide your feedback as the '{persona.label}' persona. "
+        f"Your persona ID is '{persona.id}'. "
+        "Return structured output with: persona, persona_label, overall_impression, "
+        "issues (array of {severity, area, description, suggestion}), "
+        "positives (array of strings), score (1-10), and annotations.\n\n"
+        "For annotations: provide bounding boxes highlighting where each issue "
+        "is located in the screenshot. Each annotation has:\n"
+        f"- frame_index: 0-based index of which frame (0-{len(frames) - 1})\n"
+        "- x_pct, y_pct: top-left corner as percentage (0-100) of image width/height\n"
+        "- width_pct, height_pct: box size as percentage (0-100) of image width/height\n"
+        "- issue_index: 0-based index into the issues array\n"
+        "- label: short label for the area\n"
+        "Estimate the regions visually. It's OK to be approximate."
+    )
+    return "\n".join(parts)
+
+
+def _build_system_prompt(persona: Persona, is_flow: bool) -> str:
+    """Build the system prompt combining persona role and analysis context."""
+    flow_context = (
+        "You are evaluating a multi-screen user flow. Analyze transitions, "
+        "consistency, and the overall user journey across all screens. "
+        if is_flow
+        else "You are evaluating a UI design screenshot. Analyze the visual design, "
+        "layout, typography, color usage, and user experience. "
+    )
+    return (
+        f"{persona.system_prompt}\n\n"
+        f"{flow_context}"
+        "Be specific and actionable in your feedback. "
+        "Rate severity of issues as 'high', 'medium', or 'low'."
+    )
 
 
 async def get_persona_feedback(
@@ -48,102 +115,26 @@ async def get_persona_feedback(
     frames: list[dict],
     context: str | None = None,
 ) -> PersonaFeedback:
-    """Run a Claude Agent SDK query for a single persona and return structured feedback."""
-    image_paths = []
-    try:
-        # Save all images to temp files (downscaled if needed to fit Agent SDK buffer limits)
-        for frame in frames:
-            image_bytes = base64.b64decode(frame["image"])
-            image_bytes = _downscale_if_needed(image_bytes)
-            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
-                f.write(image_bytes)
-                image_paths.append(f.name)
+    """Run a pydantic-ai agent query for a single persona and return structured feedback."""
+    # Prepare image binary content
+    image_parts: list[BinaryContent] = []
+    for frame in frames:
+        image_bytes = base64.b64decode(frame["image"])
+        image_bytes = _downscale_if_needed(image_bytes)
+        image_parts.append(BinaryContent(data=image_bytes, media_type="image/jpeg"))
 
-        is_flow = len(frames) > 1
+    # Build prompts
+    text_prompt = _build_prompt(persona, frames, context)
+    system_prompt = _build_system_prompt(persona, is_flow=len(frames) > 1)
 
-        # Build the prompt
-        if is_flow:
-            prompt_parts = [
-                "You are analyzing a user flow consisting of multiple screens. "
-                "Read each screenshot in order and analyze the complete user journey.\n"
-            ]
-            for idx, (frame, path) in enumerate(zip(frames, image_paths)):
-                meta = frame["metadata"]
-                prompt_parts.append(
-                    f"Frame {idx + 1}: \"{meta['frame_name']}\" "
-                    f"({meta['dimensions']['width']}x{meta['dimensions']['height']})\n"
-                    f"Read the screenshot at {path}\n"
-                )
-            prompt_parts.append(
-                "\nAnalyze this as a user flow. Focus on:\n"
-                "- Transitions between screens (is the flow logical?)\n"
-                "- Visual consistency across screens\n"
-                "- Overall user journey and experience\n"
-                "- Individual screen issues that affect the flow"
-            )
-        else:
-            metadata_str = json.dumps(frames[0]["metadata"], indent=2)
-            prompt_parts = [
-                f"Read the design screenshot at {image_paths[0]} and analyze it.",
-                f"\nDesign metadata:\n{metadata_str}",
-            ]
+    # Run agent with inline images + text
+    result = await feedback_agent.run(
+        [*image_parts, text_prompt],
+        model=settings.model_name,
+        system_prompt=system_prompt,
+    )
 
-        if context:
-            prompt_parts.append(f"\nDesigner's context: {context}")
-
-        prompt_parts.append(
-            f"\nProvide your feedback as the '{persona.label}' persona. "
-            f"Your persona ID is '{persona.id}'. "
-            "Return a JSON object with: persona, persona_label, overall_impression, "
-            "issues (array of {{severity, area, description, suggestion}}), "
-            "positives (array of strings), score (1-10), and annotations.\n\n"
-            "For annotations: provide a list of bounding boxes highlighting where each issue "
-            "is located in the screenshot. Each annotation has:\n"
-            f"- frame_index: 0-based index of which frame (0-{len(frames)-1})\n"
-            "- x_pct, y_pct: top-left corner as percentage (0-100) of image width/height\n"
-            "- width_pct, height_pct: box size as percentage (0-100) of image width/height\n"
-            "- issue_index: 0-based index into the issues array\n"
-            "- label: short label for the area\n"
-            "Estimate the regions visually. It's OK to be approximate."
-        )
-        prompt = "\n".join(prompt_parts)
-
-        # Build system prompt
-        flow_context = (
-            "You are evaluating a multi-screen user flow. Analyze transitions, "
-            "consistency, and the overall user journey across all screens. "
-            if is_flow else
-            "You are evaluating a UI design screenshot. Analyze the visual design, "
-            "layout, typography, color usage, and user experience. "
-        )
-        system_prompt = (
-            f"{persona.system_prompt}\n\n"
-            f"{flow_context}"
-            "Be specific and actionable in your feedback. "
-            "Rate severity of issues as 'high', 'medium', or 'low'."
-        )
-
-        options = ClaudeAgentOptions(
-            system_prompt=system_prompt,
-            allowed_tools=["Read"],
-            permission_mode="bypassPermissions",
-            output_format=build_feedback_schema(),
-            max_turns=3,
-        )
-
-        structured = None
-        async for message in query(prompt=prompt, options=options):
-            if isinstance(message, ResultMessage):
-                structured = message.structured_output
-
-        if not structured:
-            raise RuntimeError(f"No structured output returned for persona '{persona.id}'")
-
-        return PersonaFeedback.model_validate(structured)
-
-    finally:
-        for path in image_paths:
-            Path(path).unlink(missing_ok=True)
+    return result.output
 
 
 async def get_all_feedback(
@@ -157,10 +148,7 @@ async def get_all_feedback(
     personas = [get_persona(pid) for pid in persona_ids]
     valid_personas = [p for p in personas if p is not None]
 
-    coros = [
-        get_persona_feedback(persona, frames, context)
-        for persona in valid_personas
-    ]
+    coros = [get_persona_feedback(persona, frames, context) for persona in valid_personas]
     results = await asyncio.gather(*coros, return_exceptions=True)
     feedback = []
     for persona, result in zip(valid_personas, results):
@@ -176,10 +164,7 @@ async def stream_all_feedback(
     frames: list[dict],
     context: str | None = None,
 ) -> AsyncIterator[PersonaFeedback | dict]:
-    """Run feedback for multiple personas in parallel, yielding each result as it completes.
-
-    Yields PersonaFeedback on success, or {"error": True, "persona": id, "detail": msg} on failure.
-    """
+    """Run feedback for multiple personas in parallel, yielding each result as it completes."""
     from api.personas.definitions import get_persona
 
     personas = [get_persona(pid) for pid in persona_ids]
@@ -206,7 +191,6 @@ async def stream_all_feedback(
         received += 1
         yield item
 
-    # Ensure all tasks are cleaned up
     for task in tasks:
         if not task.done():
             task.cancel()
