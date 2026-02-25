@@ -19,6 +19,25 @@ def mock_feedback():
 
 
 @pytest.mark.asyncio
+async def test_get_personas_endpoint():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/api/personas")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert len(data) >= 5
+    ids = {p["id"] for p in data}
+    assert "first_time_user" in ids
+    # Should not expose system_prompt
+    assert all("system_prompt" not in p for p in data)
+    # Each item should have id and label
+    for p in data:
+        assert "id" in p
+        assert "label" in p
+
+
+@pytest.mark.asyncio
 async def test_feedback_endpoint(mock_feedback):
     with patch("api.routers.feedback.get_all_feedback", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = [mock_feedback]

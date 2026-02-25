@@ -6,9 +6,15 @@ from fastapi.responses import StreamingResponse
 from api.agents.persona_agent import get_all_feedback, stream_all_feedback
 from api.models.request import FeedbackRequest, FrameData
 from api.models.response import FeedbackResponse, PersonaFeedback
-from api.personas.definitions import PERSONAS
+from api.personas.definitions import PERSONAS, list_personas
 
 router = APIRouter()
+
+
+@router.get("/api/personas")
+async def get_personas():
+    """Return list of available personas (id + label only)."""
+    return list_personas()
 
 
 def _normalize_frames(request: FeedbackRequest) -> list[dict]:
