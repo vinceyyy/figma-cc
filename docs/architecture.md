@@ -27,8 +27,8 @@
 │  │  • Stream SSE │    │  └────┬────┘  └────┬────┘    │   │
 │  └──────────────┘    │       │             │         │   │
 │                      │       ▼             ▼         │   │
-│                      │    Claude Agent SDK queries   │   │
-│                      │    (one subprocess per persona)│   │
+│                      │    pydantic-ai agent queries  │   │
+│                      │    (one async task per persona)│   │
 │                      └──────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -184,25 +184,22 @@ Main Thread ◄──onmessage─── UI Thread
 
 ## Agent Integration
 
-Each persona query uses the Claude Agent SDK:
+Each persona query uses a pydantic-ai `Agent` with structured output:
 
 ```python
-options = ClaudeAgentOptions(
-    system_prompt=system_prompt,       # persona-specific + analysis context
-    allowed_tools=["Read"],            # agent reads the temp screenshot file
-    permission_mode="bypassPermissions",
-    output_format=build_feedback_schema(),  # PersonaFeedback JSON schema
-    max_turns=3,                       # read image → analyze → structured output
-)
+feedback_agent = Agent(output_type=PersonaFeedback)
 
-async for message in query(prompt=prompt, options=options):
-    if isinstance(message, ResultMessage):
-        structured = message.structured_output
+result = await feedback_agent.run(
+    [*image_parts, text_prompt],       # inline images + text
+    model=settings.model_name,         # configurable via MODEL_NAME env var
+    system_prompt=system_prompt,       # persona-specific + analysis context
+)
+return result.output                   # typed PersonaFeedback
 ```
 
-**Structured output:** The `PersonaFeedback` Pydantic model's JSON schema is passed as `output_format`, so the agent returns data that validates directly with `PersonaFeedback.model_validate()`.
+**Structured output:** `PersonaFeedback` is passed as `output_type` to the agent, so the model returns data that validates directly as a `PersonaFeedback` instance.
 
-**Temp file pattern:** Base64 images are decoded to temp `.png` files. The file path is included in the prompt (e.g., "Read the design screenshot at /tmp/tmpXYZ.png"). The agent uses the `Read` tool to view the image. Files are cleaned up in a `finally` block.
+**Inline vision:** Base64 images are decoded, optionally downscaled, and passed inline as `BinaryContent(data=jpeg_bytes, media_type='image/jpeg')`. No temp files needed.
 
 **Parallelism:** `stream_all_feedback` launches all persona queries as `asyncio.create_task`, collects results via `asyncio.Queue`, and yields each result as it arrives.
 
