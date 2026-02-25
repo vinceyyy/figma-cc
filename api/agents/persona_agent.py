@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import io
 import json
 import logging
 import tempfile
@@ -7,11 +8,31 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
+from PIL import Image
 
 from api.models.response import PersonaFeedback
 from api.personas.definitions import Persona
 
 logger = logging.getLogger(__name__)
+
+# Max dimension (longest side) for images sent to the agent.
+# Keeps PNGs under ~500KB to avoid the 1MB JSON buffer limit in Agent SDK.
+MAX_IMAGE_DIMENSION = 1500
+
+
+def _resize_image_bytes(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION) -> bytes:
+    """Resize image if its longest side exceeds max_dim. Returns PNG bytes."""
+    img = Image.open(io.BytesIO(image_bytes))
+    w, h = img.size
+    if max(w, h) <= max_dim:
+        return image_bytes
+    scale = max_dim / max(w, h)
+    new_size = (int(w * scale), int(h * scale))
+    img = img.resize(new_size, Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    logger.info("Resized image from %dx%d to %dx%d", w, h, *new_size)
+    return buf.getvalue()
 
 
 def build_feedback_schema() -> dict:
@@ -28,9 +49,10 @@ async def get_persona_feedback(
     """Run a Claude Agent SDK query for a single persona and return structured feedback."""
     image_paths = []
     try:
-        # Save all images to temp files
+        # Save all images to temp files (resized to fit Agent SDK buffer limits)
         for frame in frames:
             image_bytes = base64.b64decode(frame["image"])
+            image_bytes = _resize_image_bytes(image_bytes)
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
                 f.write(image_bytes)
                 image_paths.append(f.name)
