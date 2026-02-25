@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     model_name: str = "openai:gpt-5-mini"
     personas_dir: str = "./personas"
 
-    model_config = {"env_file": ".env"}
+    model_config = {"env_file": ".env", "extra": "ignore"}
 
 
 settings = Settings()
