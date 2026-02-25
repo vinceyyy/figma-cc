@@ -123,7 +123,7 @@ figma.ui.onmessage = (msg) => __awaiter(void 0, void 0, void 0, function* () {
             const results = [];
             for (const node of sorted) {
                 const imageData = yield node.exportAsync({
-                    format: "PNG",
+                    format: "JPG",
                     constraint: { type: "SCALE", value: 2 },
                 });
                 const base64 = figma.base64Encode(imageData);

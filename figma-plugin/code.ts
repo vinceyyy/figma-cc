@@ -126,7 +126,7 @@ figma.ui.onmessage = async (msg: { type: string; width?: number; height?: number
 
       for (const node of sorted) {
         const imageData = await (node as ExportMixin).exportAsync({
-          format: "PNG",
+          format: "JPG",
           constraint: { type: "SCALE", value: 2 },
         });
         const base64 = figma.base64Encode(imageData);
