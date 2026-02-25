@@ -239,7 +239,7 @@ The Figma plugin stays installed — no need to re-import the manifest.
 | Agent auth errors | Claude not logged in | Run `claude login` or set `ANTHROPIC_API_KEY` in `.env` |
 | Port 8000 already in use | Previous server still running | `lsof -ti:8000 \| xargs kill -9` then restart |
 | Plugin not showing in Figma | Not using Desktop app, or manifest not imported | Must use Figma Desktop, re-import `figma-plugin/manifest.json` |
-| Feedback takes very long | Normal — each persona spawns a Claude agent | Each persona takes 1-3 minutes; results stream in as each finishes (they run in parallel) |
+| Feedback takes very long | Normal — each persona spawns a Claude agent | All personas run in parallel; total time is 1-3 minutes, results stream in as each finishes |
 
 ---
 
