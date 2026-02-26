@@ -2,17 +2,16 @@ import asyncio
 import base64
 import io
 import json
-import logging
+import time
 from collections.abc import AsyncIterator
 
+from loguru import logger
 from PIL import Image
 from pydantic_ai import Agent, BinaryContent
 
 from api.config import settings
 from api.models.response import PersonaFeedback
 from api.personas.definitions import Persona
-
-logger = logging.getLogger(__name__)
 
 MAX_IMAGE_DIMENSION = 1500
 
@@ -25,6 +24,7 @@ def _downscale_if_needed(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION)
     """Downscale image if its longest side exceeds max_dim. Returns JPEG bytes."""
     img = Image.open(io.BytesIO(image_bytes))
     w, h = img.size
+    logger.debug("Processing image: {w}x{h}, {size} bytes", w=w, h=h, size=len(image_bytes))
     if max(w, h) <= max_dim:
         # Still convert to JPEG for consistency
         if img.mode in ("RGBA", "LA", "P"):
@@ -35,7 +35,7 @@ def _downscale_if_needed(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION)
     scale = max_dim / max(w, h)
     new_size = (int(w * scale), int(h * scale))
     img = img.resize(new_size, Image.LANCZOS)
-    logger.info("Downscaled image from %dx%d to %dx%d", w, h, *new_size)
+    logger.info("Downscaled image from {ow}x{oh} to {nw}x{nh}", ow=w, oh=h, nw=new_size[0], nh=new_size[1])
     if img.mode in ("RGBA", "LA", "P"):
         img = img.convert("RGB")
     buf = io.BytesIO()
@@ -116,6 +116,13 @@ async def get_persona_feedback(
     context: str | None = None,
 ) -> PersonaFeedback:
     """Run a pydantic-ai agent query for a single persona and return structured feedback."""
+    logger.debug(
+        "Starting query for persona={persona_id}, frames={frame_count}",
+        persona_id=persona.id,
+        frame_count=len(frames),
+    )
+    t0 = time.perf_counter()
+
     # Prepare image binary content
     image_parts: list[BinaryContent] = []
     for frame in frames:
@@ -134,6 +141,13 @@ async def get_persona_feedback(
         instructions=instructions,
     )
 
+    duration_ms = (time.perf_counter() - t0) * 1000
+    logger.info(
+        "Completed query for persona={persona_id}, score={score}, duration_ms={duration_ms:.0f}",
+        persona_id=persona.id,
+        score=result.output.score,
+        duration_ms=duration_ms,
+    )
     return result.output
 
 
@@ -147,15 +161,21 @@ async def get_all_feedback(
 
     personas = [get_persona(pid) for pid in persona_ids]
     valid_personas = [p for p in personas if p is not None]
+    logger.info("Running {count} personas in parallel", count=len(valid_personas))
 
     coros = [get_persona_feedback(persona, frames, context) for persona in valid_personas]
     results = await asyncio.gather(*coros, return_exceptions=True)
     feedback = []
     for persona, result in zip(valid_personas, results):
         if isinstance(result, Exception):
-            logger.error("Persona '%s' failed: %s", persona.id, result)
+            logger.error("Persona '{pid}' failed: {err}", pid=persona.id, err=result)
             continue
         feedback.append(result)
+    logger.info(
+        "Completed batch: {success}/{total} personas succeeded",
+        success=len(feedback),
+        total=len(valid_personas),
+    )
     return feedback
 
 
@@ -173,14 +193,17 @@ async def stream_all_feedback(
     if not valid_personas:
         return
 
+    logger.debug("Starting streaming for {count} personas", count=len(valid_personas))
+
     queue: asyncio.Queue[PersonaFeedback | dict] = asyncio.Queue()
 
     async def _run_persona(persona: Persona) -> None:
         try:
             result = await get_persona_feedback(persona, frames, context)
             await queue.put(result)
+            logger.debug("Persona {pid} result queued", pid=persona.id)
         except Exception as e:
-            logger.error("Persona '%s' failed: %s", persona.id, e)
+            logger.error("Persona '{pid}' failed: {err}", pid=persona.id, err=e)
             await queue.put({"error": True, "persona": persona.id, "detail": str(e)})
 
     tasks = [asyncio.create_task(_run_persona(p)) for p in valid_personas]
@@ -190,6 +213,8 @@ async def stream_all_feedback(
         item = await queue.get()
         received += 1
         yield item
+
+    logger.debug("Streaming complete: all {count} personas processed", count=len(valid_personas))
 
     for task in tasks:
         if not task.done():
