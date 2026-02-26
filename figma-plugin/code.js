@@ -131,7 +131,14 @@ figma.ui.onmessage = (msg) => __awaiter(void 0, void 0, void 0, function* () {
             // Sort by x position for consistent flow order
             const sorted = [...selection].sort((a, b) => a.x - b.x);
             const results = [];
-            for (const node of sorted) {
+            for (let i = 0; i < sorted.length; i++) {
+                const node = sorted[i];
+                figma.ui.postMessage({
+                    type: "export-progress",
+                    current: i + 1,
+                    total: sorted.length,
+                    frameName: node.name,
+                });
                 const imageData = yield node.exportAsync({
                     format: "JPG",
                     constraint: { type: "SCALE", value: 2 },
