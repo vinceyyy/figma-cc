@@ -135,7 +135,7 @@ Each persona is a `Persona` dataclass with `id`, `label`, and `system_prompt`. A
 | `power_user` | Power User | Efficiency, information density, shortcuts |
 | `accessibility_advocate` | Accessibility Advocate | WCAG compliance, contrast, touch targets |
 | `brand_manager` | Brand Manager | Consistency, cohesion, visual language |
-| `skeptical_customer` | Skeptical Customer | Trust signals, dark patterns, transparency |
+| `ux_heuristics_evaluator` | UX Heuristics Evaluator | Nielsen's heuristics, usability principles |
 
 **Adding a new persona:**
 

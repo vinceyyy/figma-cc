@@ -6,7 +6,7 @@ A Figma plugin that sends design screenshots to AI personas for instant, multi-p
 
 ## Features
 
-- **Extensible personas** — 5 built-in (First-Time User, Power User, Accessibility Advocate, Brand Manager, Skeptical Customer), add more by dropping a JSON file
+- **Extensible personas** — 5 built-in (First-Time User, Power User, Accessibility Advocate, Brand Manager, UX Heuristics Evaluator), add more by dropping a JSON file
 - **Annotation overlays** — issues are pinned to specific regions of the design with severity-colored bounding boxes
 - **Multi-frame flow analysis** — select multiple frames to get feedback on the full user journey
 - **SSE streaming** — feedback streams in as each persona finishes, no waiting for all to complete
