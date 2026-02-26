@@ -1,4 +1,3 @@
-import contextvars
 import logging
 import sys
 import time
@@ -8,8 +7,6 @@ from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
-
-request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id_var", default="-")
 
 _LOG_FORMAT = (
     "<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | "
@@ -68,20 +65,38 @@ def setup_logging(log_level: str = "DEBUG") -> None:
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Log every request with a unique request ID, method, path, status, and duration."""
+    """Log every request with a unique request ID, method, path, status, and duration.
+
+    Note: Duration reflects time-to-first-byte for streaming responses, not total
+    stream duration.
+    """
 
     async def dispatch(self, request: Request, call_next) -> Response:
         rid = uuid.uuid4().hex[:8]
-        request_id_var.set(rid)
-
         method = request.method
         path = request.url.path
 
         with logger.contextualize(request_id=rid):
-            logger.info(f"{method} {path}")
+            logger.info("{method} {path}", method=method, path=path)
             start = time.perf_counter()
-            response = await call_next(request)
+            try:
+                response = await call_next(request)
+            except Exception:
+                duration_ms = (time.perf_counter() - start) * 1000
+                logger.error(
+                    "{method} {path} -> UNHANDLED ({duration_ms:.0f}ms)",
+                    method=method,
+                    path=path,
+                    duration_ms=duration_ms,
+                )
+                raise
             duration_ms = (time.perf_counter() - start) * 1000
-            logger.info(f"{method} {path} -> {response.status_code} ({duration_ms:.0f}ms)")
+            logger.info(
+                "{method} {path} -> {status} ({duration_ms:.0f}ms)",
+                method=method,
+                path=path,
+                status=response.status_code,
+                duration_ms=duration_ms,
+            )
 
         return response

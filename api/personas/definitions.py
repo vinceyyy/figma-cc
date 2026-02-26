@@ -32,7 +32,7 @@ def load_personas(directory: str | Path) -> dict[str, Persona]:
             system_prompt=data["system_prompt"],
         )
         personas[persona.id] = persona
-        logger.info("Loaded persona: {pid} ({file})", pid=persona.id, file=json_file.name)
+        logger.debug("Loaded persona: {pid} ({file})", pid=persona.id, file=json_file.name)
 
     if not personas:
         raise ValueError(f"No persona JSON files found in: {dir_path.resolve()}")
