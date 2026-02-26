@@ -1278,7 +1278,7 @@
             <br><em style="color:#666">&rarr; ${esc(issue.suggestion)}</em>
           </div>
         `).join('');
-        let positivesHtml = fb.positives.length > 0
+        const positivesHtml = fb.positives.length > 0
           ? `<div class="positives-section"><div class="positives-heading">What's working well</div>${fb.positives.map(p => `<div class="positive">${esc(p)}</div>`).join('')}</div>`
           : '';
         card.innerHTML = `
