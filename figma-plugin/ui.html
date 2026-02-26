@@ -571,14 +571,17 @@
   let backendUrl = '';
   let apiKey = '';
   let availablePersonas = [];
-  let apiKey = '';
   let savedUrl = '';
   let savedApiKey = '';
   let autoConnectAttempted = false;
 
+  // Auto-connect once both saved URL and API key have been loaded from clientStorage.
+  // If the server doesn't need auth, the saved key will be ignored.
   function tryAutoConnect() {
     if (autoConnectAttempted || !savedUrl) return;
     autoConnectAttempted = true;
+    // If we have a saved key, try direct connect (skip /health check).
+    // Otherwise, use checkAuthRequired which will ask for a key if needed.
     if (savedApiKey) {
       connectToBackend(savedUrl, savedApiKey);
     } else {
@@ -586,6 +589,7 @@
     }
   }
 
+  // Check if the backend requires an API key by calling /health
   async function checkAuthRequired(url) {
     const cleanUrl = url.replace(/\/+$/, '');
     const connectError = document.getElementById('connectError');
@@ -603,9 +607,11 @@
       const data = await resp.json();
 
       if (data.auth_required) {
+        // Show API key input and wait for user to fill it
         apiKeyRow.style.display = 'block';
         connectLoading.style.display = 'none';
         document.getElementById('btnConnect').disabled = false;
+        // Change button to proceed with key
         document.getElementById('btnConnect').textContent = 'Connect with API Key';
         document.getElementById('btnConnect').onclick = () => {
           const key = document.getElementById('apiKey').value.trim();
@@ -617,6 +623,7 @@
           connectToBackend(cleanUrl, key);
         };
       } else {
+        // No auth needed — connect directly without showing key input
         apiKeyRow.style.display = 'none';
         await connectToBackend(cleanUrl, '');
       }
@@ -676,6 +683,7 @@
     } finally {
       connectLoading.style.display = 'none';
       document.getElementById('btnConnect').disabled = false;
+      // Reset button for next connection attempt
       document.getElementById('btnConnect').textContent = 'Connect';
       document.getElementById('btnConnect').onclick = null;
     }
@@ -1039,8 +1047,9 @@
 
   // Sanitize strings before inserting into HTML to prevent XSS
   function esc(str) {
-    if (str == null) return '';
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
   }
 
   // Render a single feedback card into the container
@@ -1463,8 +1472,7 @@
   // Connect button
   document.getElementById('btnConnect').onclick = () => {
     const url = document.getElementById('apiUrl').value.trim();
-    if (!url) return;
-    checkAuthRequired(url);
+    if (url) checkAuthRequired(url);
   };
 
   // Change Backend buttons
