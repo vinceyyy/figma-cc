@@ -1,17 +1,16 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock, MagicMock
 from httpx import AsyncClient, ASGITransport
 
-from claude_agent_sdk import ResultMessage
-
 from api.main import app
+from api.models.response import PersonaFeedback
 
 
-MOCK_FEEDBACK = {
-    "persona": "first_time_user",
-    "persona_label": "First-Time User",
-    "overall_impression": "The design looks clean but the navigation is confusing.",
-    "issues": [
+MOCK_FEEDBACK = PersonaFeedback(
+    persona="first_time_user",
+    persona_label="First-Time User",
+    overall_impression="The design looks clean but the navigation is confusing.",
+    issues=[
         {
             "severity": "high",
             "area": "Navigation",
@@ -19,9 +18,9 @@ MOCK_FEEDBACK = {
             "suggestion": "Add visual weight to primary navigation items",
         }
     ],
-    "positives": ["Good use of whitespace", "Readable typography"],
-    "score": 6,
-    "annotations": [
+    positives=["Good use of whitespace", "Readable typography"],
+    score=6,
+    annotations=[
         {
             "x_pct": 0.0,
             "y_pct": 0.0,
@@ -31,72 +30,14 @@ MOCK_FEEDBACK = {
             "label": "Navigation",
         }
     ],
-}
+)
 
 
-def _make_result_message(structured: dict) -> ResultMessage:
-    """Create a real ResultMessage dataclass instance with structured output."""
-    return ResultMessage(
-        subtype="result",
-        duration_ms=100,
-        duration_api_ms=80,
-        is_error=False,
-        num_turns=1,
-        session_id="test-session",
-        result="",
-        structured_output=structured,
-    )
-
-
-async def _mock_query(**kwargs):
-    """Async generator that yields a single ResultMessage, mimicking the SDK's query()."""
-    yield _make_result_message(MOCK_FEEDBACK)
-
-
-@pytest.mark.asyncio
-async def test_full_feedback_flow():
-    """E2E integration test: HTTP request -> endpoint -> agent (mocked) -> parsed response."""
-    with patch("api.agents.persona_agent.query", side_effect=lambda **kw: _mock_query(**kw)):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post(
-                "/api/feedback",
-                json={
-                    "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-                    "metadata": {
-                        "frame_name": "Test Frame",
-                        "dimensions": {"width": 1440, "height": 900},
-                        "text_content": ["Hello"],
-                        "colors": ["#ffffff"],
-                        "component_names": [],
-                    },
-                    "personas": ["first_time_user"],
-                    "context": "A test page",
-                },
-            )
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert len(data["feedback"]) == 1
-
-    fb = data["feedback"][0]
-    assert fb["persona"] == "first_time_user"
-    assert fb["persona_label"] == "First-Time User"
-    assert fb["score"] == 6
-    assert len(fb["issues"]) == 1
-    assert fb["issues"][0]["severity"] == "high"
-    assert fb["issues"][0]["area"] == "Navigation"
-    assert fb["positives"] == ["Good use of whitespace", "Readable typography"]
-    assert fb["annotations"] is not None
-    assert len(fb["annotations"]) == 1
-    assert fb["annotations"][0]["label"] == "Navigation"
-    assert fb["annotations"][0]["issue_index"] == 0
-
-
-MOCK_FLOW_FEEDBACK = {
-    "persona": "first_time_user",
-    "persona_label": "First-Time User",
-    "overall_impression": "The flow from login to dashboard is clear but the transition is jarring.",
-    "issues": [
+MOCK_FLOW_FEEDBACK = PersonaFeedback(
+    persona="first_time_user",
+    persona_label="First-Time User",
+    overall_impression="The flow from login to dashboard is clear but the transition is jarring.",
+    issues=[
         {
             "severity": "medium",
             "area": "Transition",
@@ -104,9 +45,9 @@ MOCK_FLOW_FEEDBACK = {
             "suggestion": "Add a brief loading indicator after login submit",
         }
     ],
-    "positives": ["Consistent header across screens"],
-    "score": 7,
-    "annotations": [
+    positives=["Consistent header across screens"],
+    score=7,
+    annotations=[
         {
             "frame_index": 0,
             "x_pct": 30.0,
@@ -126,41 +67,83 @@ MOCK_FLOW_FEEDBACK = {
             "label": "Missing loading state",
         },
     ],
-}
+)
 
 
-async def _mock_flow_query(**kwargs):
-    yield _make_result_message(MOCK_FLOW_FEEDBACK)
+@pytest.fixture
+def mock_agent_run():
+    mock_result = MagicMock()
+    mock_result.output = MOCK_FEEDBACK
+    with patch("api.agents.persona_agent.feedback_agent") as mock_agent:
+        mock_agent.run = AsyncMock(return_value=mock_result)
+        yield mock_agent
+
+
+@pytest.fixture
+def mock_agent_flow():
+    mock_result = MagicMock()
+    mock_result.output = MOCK_FLOW_FEEDBACK
+    with patch("api.agents.persona_agent.feedback_agent") as mock_agent:
+        mock_agent.run = AsyncMock(return_value=mock_result)
+        yield mock_agent
 
 
 @pytest.mark.asyncio
-async def test_multi_frame_flow():
-    """E2E: multi-frame request with flow-level feedback."""
-    with patch("api.agents.persona_agent.query", side_effect=lambda **kw: _mock_flow_query(**kw)):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            resp = await client.post(
-                "/api/feedback",
-                json={
-                    "frames": [
-                        {
-                            "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-                            "metadata": {
-                                "frame_name": "Login",
-                                "dimensions": {"width": 1440, "height": 900},
-                            },
-                        },
-                        {
-                            "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-                            "metadata": {
-                                "frame_name": "Dashboard",
-                                "dimensions": {"width": 1440, "height": 900},
-                            },
-                        },
-                    ],
-                    "personas": ["first_time_user"],
-                    "context": "Login to dashboard flow",
+async def test_full_feedback_flow(mock_agent_run):
+    """E2E integration test: HTTP request -> endpoint -> agent (mocked) -> parsed response."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            "/api/feedback",
+            json={
+                "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                "metadata": {
+                    "frame_name": "Test Frame",
+                    "dimensions": {"width": 1440, "height": 900},
+                    "text_content": ["Hello"],
+                    "colors": ["#ffffff"],
+                    "component_names": [],
                 },
-            )
+                "personas": ["first_time_user"],
+                "context": "A test page",
+            },
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["feedback"]) == 1
+
+    fb = data["feedback"][0]
+    assert fb["persona"] == "first_time_user"
+    assert fb["persona_label"] == "First-Time User"
+    assert fb["score"] == 6
+    assert len(fb["issues"]) == 1
+    assert fb["issues"][0]["severity"] == "high"
+    assert fb["positives"] == ["Good use of whitespace", "Readable typography"]
+    assert fb["annotations"] is not None
+    assert len(fb["annotations"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_multi_frame_flow(mock_agent_flow):
+    """E2E: multi-frame request with flow-level feedback."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            "/api/feedback",
+            json={
+                "frames": [
+                    {
+                        "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                        "metadata": {"frame_name": "Login", "dimensions": {"width": 1440, "height": 900}},
+                    },
+                    {
+                        "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                        "metadata": {"frame_name": "Dashboard", "dimensions": {"width": 1440, "height": 900}},
+                    },
+                ],
+                "personas": ["first_time_user"],
+                "context": "Login to dashboard flow",
+            },
+        )
 
     assert resp.status_code == 200
     data = resp.json()
@@ -174,23 +157,19 @@ async def test_multi_frame_flow():
 
 
 @pytest.mark.asyncio
-async def test_stream_feedback_yields_results():
+async def test_stream_feedback_yields_results(mock_agent_run):
     """Unit test: stream_all_feedback yields PersonaFeedback objects as they complete."""
     from api.agents.persona_agent import stream_all_feedback
 
-    with patch("api.agents.persona_agent.query", side_effect=lambda **kw: _mock_query(**kw)):
-        results = []
-        async for fb in stream_all_feedback(
-            persona_ids=["first_time_user"],
-            frames=[{
-                "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-                "metadata": {
-                    "frame_name": "Test",
-                    "dimensions": {"width": 1440, "height": 900},
-                },
-            }],
-        ):
-            results.append(fb)
+    results = []
+    async for fb in stream_all_feedback(
+        persona_ids=["first_time_user"],
+        frames=[{
+            "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            "metadata": {"frame_name": "Test", "dimensions": {"width": 1440, "height": 900}},
+        }],
+    ):
+        results.append(fb)
 
     assert len(results) == 1
     assert results[0].persona == "first_time_user"

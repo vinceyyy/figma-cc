@@ -373,17 +373,27 @@
     </div>
   </div>
 
-  <!-- API URL config -->
-  <div class="section" id="apiUrlSection">
-    <div class="label">Backend URL</div>
-    <input type="text" class="api-url-input" id="apiUrl"
-           value="https://cristine-foraminiferal-domingo.ngrok-free.dev"
-           placeholder="https://your-ngrok-url.ngrok-free.dev">
+  <!-- Connect state (initial) -->
+  <div id="state-connect">
+    <div style="text-align:center; padding: 40px 20px;">
+      <h2 style="margin-bottom:16px;">Connect to Backend</h2>
+      <p style="color:#666; font-size:12px; margin-bottom:16px;">Enter your backend URL to get started</p>
+      <input type="text" class="api-url-input" id="apiUrl"
+             placeholder="https://your-ngrok-url.ngrok-free.dev"
+             style="margin-bottom:12px;">
+      <button class="btn" id="btnConnect">Connect</button>
+      <div id="connectError" style="display:none; margin-top:12px;" class="error-msg"></div>
+      <div id="connectLoading" style="display:none; margin-top:12px;">
+        <div class="spinner" style="margin:0 auto;"></div>
+        <p style="color:#999; font-size:11px; margin-top:8px;">Connecting...</p>
+      </div>
+    </div>
   </div>
 
-  <!-- Empty state -->
-  <div id="state-empty" class="empty-state">
+  <!-- Empty state (connected but no selection) -->
+  <div id="state-empty" style="display:none;" class="empty-state">
     <p>Select a frame to get started</p>
+    <button class="btn-secondary btn" id="btnChangeBackendEmpty" style="font-size:11px; padding:6px; margin-top: 12px;">Change Backend</button>
   </div>
 
   <!-- Ready state -->
@@ -400,14 +410,11 @@
     <div class="section">
       <div class="label">Get feedback from:</div>
       <ul class="persona-list" id="personaList">
-        <li><label><input type="checkbox" value="first_time_user" checked> First-Time User</label></li>
-        <li><label><input type="checkbox" value="power_user" checked> Power User</label></li>
-        <li><label><input type="checkbox" value="accessibility_advocate"> Accessibility Advocate</label></li>
-        <li><label><input type="checkbox" value="brand_manager"> Brand Manager</label></li>
-        <li><label><input type="checkbox" value="skeptical_customer"> Skeptical Customer</label></li>
+        <!-- Dynamically populated from backend -->
       </ul>
     </div>
     <button class="btn" id="btnGetFeedback">Get Feedback</button>
+    <button class="btn-secondary btn" id="btnChangeBackend" style="font-size:11px; padding:6px;">Change Backend</button>
   </div>
 
   <!-- Loading state -->
@@ -443,14 +450,59 @@
   let twoColMode = false;
   let allFeedbackStore = [];
   let streamingAbort = null;
+  let backendUrl = '';
+  let availablePersonas = [];
+
+  async function connectToBackend(url) {
+    const cleanUrl = url.replace(/\/+$/, '');
+    const connectError = document.getElementById('connectError');
+    const connectLoading = document.getElementById('connectLoading');
+    connectError.style.display = 'none';
+    connectLoading.style.display = 'block';
+    document.getElementById('btnConnect').disabled = true;
+
+    try {
+      const resp = await fetch(`${cleanUrl}/api/personas`, {
+        headers: { 'ngrok-skip-browser-warning': 'true' },
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      availablePersonas = await resp.json();
+
+      if (!availablePersonas.length) throw new Error('No personas available on this server');
+
+      backendUrl = cleanUrl;
+      // Save URL for next session
+      parent.postMessage({ pluginMessage: { type: 'save-backend-url', url: cleanUrl } }, '*');
+
+      // Populate persona checkboxes
+      const list = document.getElementById('personaList');
+      list.innerHTML = '';
+      availablePersonas.forEach((p, i) => {
+        const li = document.createElement('li');
+        const checked = i < 2 ? 'checked' : '';
+        li.innerHTML = `<label><input type="checkbox" value="${p.id}" ${checked}> ${p.label}</label>`;
+        list.appendChild(li);
+      });
+
+      // Transition based on current selection state
+      if (currentMetadata) {
+        showState('state-ready');
+      } else {
+        showState('state-empty');
+      }
+    } catch (e) {
+      connectError.textContent = `Can't reach backend: ${e.message}`;
+      connectError.style.display = 'block';
+    } finally {
+      connectLoading.style.display = 'none';
+      document.getElementById('btnConnect').disabled = false;
+    }
+  }
 
   function showState(stateId) {
-    ['state-empty', 'state-ready', 'state-loading', 'state-results', 'state-error']
+    ['state-connect', 'state-empty', 'state-ready', 'state-loading', 'state-results', 'state-error']
       .forEach(id => document.getElementById(id).style.display = 'none');
     document.getElementById(stateId).style.display = 'block';
-    // Hide backend URL except on initial screens
-    const urlSection = document.getElementById('apiUrlSection');
-    urlSection.style.display = (stateId === 'state-empty' || stateId === 'state-ready') ? 'block' : 'none';
   }
 
   // Handle messages from plugin main thread
@@ -458,18 +510,23 @@
     const msg = event.data.pluginMessage;
     if (!msg) return;
 
+    if (msg.type === 'saved-backend-url') {
+      document.getElementById('apiUrl').value = msg.url;
+      connectToBackend(msg.url);
+    }
+
     if (msg.type === 'selection-cleared') {
       currentMetadata = null;
       currentImage = null;
       currentFrames = null;
-      showState('state-empty');
+      if (backendUrl) showState('state-empty');
     }
 
     if (msg.type === 'selection-info') {
       currentMetadata = msg.metadata;
       const info = document.getElementById('selectionInfo');
       info.textContent = `"${msg.metadata.frameName}" (${msg.metadata.dimensions.width} x ${msg.metadata.dimensions.height})`;
-      showState('state-ready');
+      if (backendUrl) showState('state-ready');
     }
 
     if (msg.type === 'multi-selection-info') {
@@ -477,9 +534,9 @@
       currentFrames = null;
       currentImage = null;
       const info = document.getElementById('selectionInfo');
-      const names = msg.frames.map(f => `"${f.frameName}"`).join(' → ');
+      const names = msg.frames.map(f => `"${f.frameName}"`).join(' \u2192 ');
       info.textContent = `Flow: ${names} (${msg.frames.length} frames)`;
-      showState('state-ready');
+      if (backendUrl) showState('state-ready');
     }
 
     if (msg.type === 'export-result') {
@@ -521,7 +578,7 @@
   // Send feedback request to API (SSE streaming)
   async function sendFeedbackRequest() {
     allFeedbackStore = [];
-    const apiUrl = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+    const apiUrl = backendUrl;
     const personas = getSelectedPersonas();
     const context = document.getElementById('contextInput').value.trim() || null;
 
@@ -1172,6 +1229,22 @@
     tooltip.style.left = left + 'px';
     tooltip.style.top = top + 'px';
   }
+
+  // Connect button
+  document.getElementById('btnConnect').onclick = () => {
+    const url = document.getElementById('apiUrl').value.trim();
+    if (!url) return;
+    connectToBackend(url);
+  };
+
+  // Change Backend buttons
+  document.getElementById('btnChangeBackend').onclick = () => {
+    showState('state-connect');
+  };
+
+  document.getElementById('btnChangeBackendEmpty').onclick = () => {
+    showState('state-connect');
+  };
 
   // New Feedback / Retry buttons
   document.getElementById('btnNewFeedback').onclick = () => {

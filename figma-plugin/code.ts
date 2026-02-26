@@ -1,5 +1,12 @@
 figma.showUI(__html__, { width: 560, height: 600 });
 
+// Send saved backend URL to UI on startup
+figma.clientStorage.getAsync('backendUrl').then(url => {
+  if (url) {
+    figma.ui.postMessage({ type: 'saved-backend-url', url });
+  }
+});
+
 // Listen for selection changes
 figma.on("selectionchange", () => {
   sendSelectionInfo();
@@ -107,10 +114,13 @@ function toHex(value: number): string {
 }
 
 // Handle messages from UI
-figma.ui.onmessage = async (msg: { type: string; width?: number; height?: number }) => {
+figma.ui.onmessage = async (msg: { type: string; width?: number; height?: number; url?: string }) => {
   if (msg.type === "resize") {
     figma.ui.resize(msg.width!, msg.height!);
     return;
+  }
+  if (msg.type === "save-backend-url") {
+    figma.clientStorage.setAsync("backendUrl", msg.url);
   }
   if (msg.type === "export-selection") {
     const selection = figma.currentPage.selection;

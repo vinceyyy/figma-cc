@@ -9,6 +9,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 figma.showUI(__html__, { width: 560, height: 600 });
+// Send saved backend URL to UI on startup
+figma.clientStorage.getAsync('backendUrl').then(url => {
+    if (url) {
+        figma.ui.postMessage({ type: 'saved-backend-url', url });
+    }
+});
 // Listen for selection changes
 figma.on("selectionchange", () => {
     sendSelectionInfo();
@@ -110,6 +116,9 @@ figma.ui.onmessage = (msg) => __awaiter(void 0, void 0, void 0, function* () {
     if (msg.type === "resize") {
         figma.ui.resize(msg.width, msg.height);
         return;
+    }
+    if (msg.type === "save-backend-url") {
+        figma.clientStorage.setAsync("backendUrl", msg.url);
     }
     if (msg.type === "export-selection") {
         const selection = figma.currentPage.selection;

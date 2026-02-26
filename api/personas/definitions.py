@@ -1,4 +1,8 @@
+import json
 from dataclasses import dataclass
+from pathlib import Path
+
+from loguru import logger
 
 
 @dataclass
@@ -8,64 +12,45 @@ class Persona:
     system_prompt: str
 
 
-PERSONAS: dict[str, Persona] = {
-    "first_time_user": Persona(
-        id="first_time_user",
-        label="First-Time User",
-        system_prompt=(
-            "You are a first-time user who has never seen this application before. "
-            "You are not tech-savvy and get confused by jargon, unclear icons, or complex navigation. "
-            "You need clear affordances, obvious calls to action, and simple language. "
-            "Evaluate the design from this perspective: Can you figure out what to do? "
-            "Is anything confusing? What would make you give up?"
-        ),
-    ),
-    "power_user": Persona(
-        id="power_user",
-        label="Power User",
-        system_prompt=(
-            "You are a power user who uses this application daily for hours. "
-            "You value efficiency, information density, and keyboard shortcuts. "
-            "You dislike unnecessary confirmations, excessive whitespace, and hidden features. "
-            "Evaluate the design from this perspective: Is the workflow efficient? "
-            "Can you accomplish tasks quickly? Is information density appropriate?"
-        ),
-    ),
-    "accessibility_advocate": Persona(
-        id="accessibility_advocate",
-        label="Accessibility Advocate",
-        system_prompt=(
-            "You are an accessibility expert evaluating this design for WCAG compliance. "
-            "You check color contrast ratios, touch target sizes (minimum 44x44px), "
-            "screen reader friendliness, keyboard navigation, and cognitive load. "
-            "Evaluate the design from this perspective: Can people with visual, motor, "
-            "or cognitive disabilities use this effectively?"
-        ),
-    ),
-    "brand_manager": Persona(
-        id="brand_manager",
-        label="Brand Manager",
-        system_prompt=(
-            "You are a brand manager evaluating design consistency. "
-            "You check for consistent use of colors, typography, spacing, and tone of voice. "
-            "You care about whether the design feels cohesive and professional. "
-            "Evaluate the design from this perspective: Does it feel on-brand? "
-            "Is the visual language consistent? Does the tone match the brand personality?"
-        ),
-    ),
-    "skeptical_customer": Persona(
-        id="skeptical_customer",
-        label="Skeptical Customer",
-        system_prompt=(
-            "You are a skeptical potential customer who distrusts online products. "
-            "You look for trust signals (reviews, security badges, clear pricing). "
-            "You are wary of dark patterns, hidden fees, and manipulative design. "
-            "Evaluate the design from this perspective: Do you trust this? "
-            "Is pricing transparent? Are there any dark patterns or manipulative elements?"
-        ),
-    ),
-}
+def load_personas(directory: str | Path) -> dict[str, Persona]:
+    """Load all persona JSON files from a directory.
+
+    Each JSON file must have: id, label, system_prompt.
+    Returns dict keyed by persona id.
+    """
+    dir_path = Path(directory)
+    if not dir_path.is_dir():
+        raise FileNotFoundError(f"Personas directory not found: {dir_path.resolve()}")
+
+    personas: dict[str, Persona] = {}
+    for json_file in sorted(dir_path.glob("*.json")):
+        with open(json_file) as f:
+            data = json.load(f)
+        persona = Persona(
+            id=data["id"],
+            label=data["label"],
+            system_prompt=data["system_prompt"],
+        )
+        personas[persona.id] = persona
+        logger.debug("Loaded persona: {pid} ({file})", pid=persona.id, file=json_file.name)
+
+    if not personas:
+        raise ValueError(f"No persona JSON files found in: {dir_path.resolve()}")
+
+    return personas
+
+
+# Load personas at import time from configured directory
+from api.config import settings
+
+PERSONAS = load_personas(settings.personas_dir)
+logger.info("Loaded {count} personas total", count=len(PERSONAS))
 
 
 def get_persona(persona_id: str) -> Persona | None:
     return PERSONAS.get(persona_id)
+
+
+def list_personas() -> list[dict[str, str]]:
+    """Return list of {id, label} for all loaded personas (for API response)."""
+    return [{"id": p.id, "label": p.label} for p in PERSONAS.values()]

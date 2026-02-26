@@ -6,7 +6,7 @@ A Figma plugin that sends design screenshots to AI personas for instant, multi-p
 
 ## Features
 
-- **5 built-in personas** — First-Time User, Power User, Accessibility Advocate, Brand Manager, Skeptical Customer
+- **Extensible personas** — 5 built-in (First-Time User, Power User, Accessibility Advocate, Brand Manager, Skeptical Customer), add more by dropping a JSON file
 - **Annotation overlays** — issues are pinned to specific regions of the design with severity-colored bounding boxes
 - **Multi-frame flow analysis** — select multiple frames to get feedback on the full user journey
 - **SSE streaming** — feedback streams in as each persona finishes, no waiting for all to complete
@@ -17,7 +17,7 @@ A Figma plugin that sends design screenshots to AI personas for instant, multi-p
 - Python 3.13+
 - Node.js (for building the plugin TypeScript)
 - [ngrok](https://ngrok.com/) (tunnels your local backend so Figma can reach it)
-- [Claude Max subscription](https://claude.ai/) **or** an `ANTHROPIC_API_KEY`
+- An OpenAI API key (or another LLM provider supported by pydantic-ai)
 
 ## Quick Start
 
@@ -29,14 +29,11 @@ uv sync                         # Python dependencies
 cd figma-plugin && npm install   # Plugin dependencies
 ```
 
-### 2. Authenticate Claude
+### 2. Set up API key
 
 ```bash
-# Option A: Claude Max (recommended)
-claude login
-
-# Option B: API key
-export ANTHROPIC_API_KEY=sk-ant-...
+cp .env.example .env
+# Edit .env and set: OPENAI_API_KEY=sk-...
 ```
 
 ### 3. Start the backend
@@ -64,26 +61,26 @@ Copy the HTTPS URL (e.g., `https://abc123.ngrok-free.app`).
 1. Open Figma Desktop
 2. Plugins > Development > Import plugin from manifest
 3. Select `figma-plugin/manifest.json`
-4. Open the plugin, paste the ngrok URL into the **Backend URL** field
+4. Open the plugin, paste the ngrok URL and click **Connect**
 5. Select a frame, pick personas, and click **Get Feedback**
 
 ## How It Works
 
 ```
 Figma Plugin (UI thread)
-  ├── exports selected frames as PNG screenshots
+  ├── connects to backend (GET /api/personas)
+  ├── exports selected frames as JPEG screenshots
   ├── collects metadata (dimensions, text, colors, components)
   └── POST /api/feedback/stream ──► FastAPI Backend
-                                        ├── saves images to temp files
-                                        ├── spawns Claude Agent SDK queries (one per persona)
-                                        ├── each agent reads the screenshot via Read tool
+                                        ├── runs pydantic-ai agents (one per persona)
+                                        ├── sends images inline via vision API
                                         ├── returns structured JSON (issues, annotations, score)
                                         └── streams results as SSE events ──► Plugin renders incrementally
 ```
 
-Each persona is a Claude agent with a specialized system prompt. The agent analyzes the screenshot, identifies issues, and returns structured feedback with percentage-based annotation coordinates that the plugin overlays on the design.
+Each persona is a pydantic-ai agent with specialized instructions. The agent analyzes the screenshot via inline vision, identifies issues, and returns structured feedback with percentage-based annotation coordinates that the plugin overlays on the design.
 
-> **Why Claude Agent SDK?** The Agent SDK was chosen because it's quick to build with and reuses a Claude Max subscription — no separate API key needed. For this use case (screenshot in → structured JSON out), the Anthropic API with direct tool use would give finer-grained control over the interaction. The Agent SDK trades that control for faster prototyping.
+> **Why pydantic-ai?** pydantic-ai provides model-agnostic structured output via `output_type`, inline vision support, and the ability to switch LLM providers (OpenAI, Anthropic, Google, etc.) by changing a single env var. No vendor lock-in.
 
 ## Configuration
 
@@ -92,7 +89,9 @@ Each persona is a Claude agent with a specialized system prompt. The agent analy
 | Backend URL | Plugin UI text field | — (required) |
 | Personas | Plugin UI checkboxes | All 5 selected |
 | Designer context | Plugin UI text area | Optional free text |
-| `ANTHROPIC_API_KEY` | Environment variable | Not needed with Claude Max |
+| `OPENAI_API_KEY` | `.env` file | Required |
+| `MODEL_NAME` | `.env` file | `openai:gpt-5-mini` |
+| `PERSONAS_DIR` | `.env` file | `./personas` |
 | Allowed domains | `figma-plugin/manifest.json` | `*.ngrok-free.app`, `*.ngrok-free.dev` |
 
 ## Development
@@ -117,28 +116,25 @@ cd figma-plugin && npm run build
 figma-cc/
 ├── api/
 │   ├── main.py                  # FastAPI app, CORS, router mounting
-│   ├── config.py                # pydantic-settings (host, port)
+│   ├── config.py                # pydantic-settings (host, port, model, personas dir)
 │   ├── agents/
-│   │   └── persona_agent.py     # Claude Agent SDK queries, parallel execution, SSE streaming
+│   │   └── persona_agent.py     # pydantic-ai agent, inline vision, parallel execution
 │   ├── models/
 │   │   ├── request.py           # FeedbackRequest, FrameData, DesignMetadata
 │   │   └── response.py          # PersonaFeedback, Issue, Annotation
 │   ├── personas/
-│   │   └── definitions.py       # Persona dataclass and 5 built-in personas
+│   │   └── definitions.py       # Persona dataclass, JSON loader
 │   └── routers/
-│       └── feedback.py          # POST /api/feedback and POST /api/feedback/stream
+│       └── feedback.py          # GET /api/personas, POST /api/feedback, POST /api/feedback/stream
+├── personas/                    # Persona JSON files (configurable via PERSONAS_DIR)
+│   └── *.json                   # Each file: {id, label, system_prompt}
 ├── figma-plugin/
 │   ├── manifest.json            # Plugin config, allowed network domains
-│   ├── code.ts                  # Main thread: selection, export, metadata extraction
-│   ├── ui.html                  # UI thread: persona selection, SSE parsing, annotation rendering
+│   ├── code.ts                  # Main thread: selection, JPEG export, metadata extraction
+│   ├── ui.html                  # UI thread: connect flow, persona picker, SSE, annotations
 │   ├── package.json             # TypeScript build tooling
 │   └── tsconfig.json            # TypeScript config
-├── tests/
-│   ├── test_models.py           # Pydantic model validation
-│   ├── test_personas.py         # Persona lookup and definitions
-│   ├── test_agent.py            # Agent query mocking
-│   ├── test_feedback_endpoint.py # Router endpoint tests
-│   └── test_integration.py      # End-to-end flow tests
+├── tests/                       # pytest + pytest-asyncio (pydantic-ai mocked)
 ├── pyproject.toml               # Python project config (uv)
 └── CLAUDE.md                    # AI agent instructions
 ```

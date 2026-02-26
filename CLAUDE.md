@@ -130,23 +130,25 @@ cd figma-plugin && npm run build && cd ..            # Compile TypeScript to Jav
 
 Verify `figma-plugin/code.js` exists after this step.
 
-### Step 6: Verify Claude authentication
+### Step 6: Set up OpenAI API key
 
-The AI feedback feature needs Claude access. Check if already authenticated:
+The AI feedback feature needs an OpenAI API key. Check if already configured:
 ```bash
-claude auth status
+test -f .env && grep -q "OPENAI_API_KEY" .env && echo "Key found" || echo "Key missing"
 ```
 
-If not authenticated, tell the user:
-> "The AI features need access to Claude. Since you have Claude Code installed, you're likely
-> already logged in. If not, I'll open a browser window for you to log in."
+If the key is missing, tell the user:
+> "The AI features need an OpenAI API key to analyze your designs.
+>
+> 1. Copy the example env file: I'll do this for you.
+> 2. You need to add your OpenAI API key. Go to **https://platform.openai.com/api-keys**
+>    to create one if you don't have one.
+> 3. Paste the key here and I'll add it to your `.env` file."
 
-Then run `claude login` if needed.
-
-**Alternative**: If the user has an Anthropic API key (not a Claude Max subscription):
+Then set it up:
 ```bash
 cp .env.example .env
-# Edit .env to set: ANTHROPIC_API_KEY=sk-ant-...
+# Edit .env to set: OPENAI_API_KEY=sk-...
 ```
 
 ### Step 7: Start the backend server
@@ -199,12 +201,12 @@ Tell them the full absolute path to `figma-plugin/manifest.json` so they can fin
 
 > "Great! Now let's use the plugin:
 >
-> 1. In Figma, select one or more frames in your design (click on a frame/screen)
-> 2. Right-click on the canvas → **Plugins** → **Development** → **figma-cc**
-> 3. The plugin panel will open. Paste this URL into the **Backend URL** field at the top:
->    `<the ngrok URL from step 8>`
-> 4. Check which AI personas you want feedback from (or leave all selected)
-> 5. Click **Get Feedback**
+> 1. In Figma, right-click on the canvas → **Plugins** → **Development** → **figma-cc**
+> 2. The plugin panel will open. Paste this URL into the **Backend URL** field:
+>    `<the ngrok URL from step 8>` and click **Connect**
+> 3. Once connected, the available personas will load. Select one or more frames in your design,
+>    then choose which AI personas you want feedback from
+> 4. Click **Get Feedback**
 >
 > Feedback will stream in as each AI persona finishes analyzing your design!"
 
@@ -220,8 +222,9 @@ uv run uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 ngrok http 8000
 ```
 
-**Important**: The ngrok URL changes every time ngrok restarts. The user must paste the new URL
-into the plugin each time.
+**Important**: The ngrok URL changes every time ngrok restarts. The plugin remembers the
+last-used backend URL, but since ngrok assigns a new URL each restart, the user will need to
+re-enter the URL and click **Connect** again.
 
 The Figma plugin stays installed — no need to re-import the manifest.
 
@@ -236,10 +239,10 @@ The Figma plugin stays installed — no need to re-import the manifest.
 | ngrok error "ERR_NGROK_108" | Authtoken invalid/expired | Get new token from https://dashboard.ngrok.com/get-started/your-authtoken |
 | Plugin can't connect to backend | Wrong URL or ngrok not running | Verify ngrok is running, URL is HTTPS, and user pasted it correctly in plugin |
 | `python3 --version` < 3.13 | Outdated Python | `brew install python@3.13` then `brew link python@3.13` |
-| Agent auth errors | Claude not logged in | Run `claude login` or set `ANTHROPIC_API_KEY` in `.env` |
+| API key errors | `OPENAI_API_KEY` not set | Add key to `.env` file (copy from `.env.example` if needed) |
 | Port 8000 already in use | Previous server still running | `lsof -ti:8000 \| xargs kill -9` then restart |
 | Plugin not showing in Figma | Not using Desktop app, or manifest not imported | Must use Figma Desktop, re-import `figma-plugin/manifest.json` |
-| Feedback takes very long | Normal — each persona spawns a Claude agent | All personas run in parallel; total time is 1-3 minutes, results stream in as each finishes |
+| Feedback takes very long | Normal — each persona runs an AI analysis | All personas run in parallel; total time is 1-3 minutes, results stream in as each finishes |
 
 ---
 
@@ -270,39 +273,46 @@ api/
 ├── main.py                  # FastAPI app — CORS middleware, router mounting, /health endpoint
 ├── config.py                # pydantic-settings: host, port, reads .env
 ├── agents/
-│   └── persona_agent.py     # Claude Agent SDK integration — builds prompts, runs queries,
+│   └── persona_agent.py     # pydantic-ai agent — inline vision, structured output,
 │                            #   parallel execution, SSE streaming generator
 ├── models/
 │   ├── request.py           # FeedbackRequest (single or multi-frame), FrameData, DesignMetadata
-│   └── response.py          # PersonaFeedback, Issue, Annotation — used as agent output_format schema
+│   └── response.py          # PersonaFeedback, Issue, Annotation — used as agent output_type schema
 ├── personas/
-│   └── definitions.py       # Persona dataclass, PERSONAS dict, get_persona() lookup
+│   └── definitions.py       # Persona dataclass, JSON loader, get_persona() lookup
 └── routers/
-    └── feedback.py          # POST /api/feedback (batch), POST /api/feedback/stream (SSE)
+    └── feedback.py          # POST /api/feedback (batch), POST /api/feedback/stream (SSE),
+                             #   GET /api/personas (list available personas)
+
+personas/
+├── ux_researcher.json       # UX Researcher persona definition
+├── accessibility_expert.json # Accessibility Expert persona definition
+├── visual_designer.json     # Visual Designer persona definition
+└── *.json                   # Add new personas as JSON files here
 
 figma-plugin/
 ├── manifest.json            # Plugin ID, documentAccess: dynamic-page, allowed ngrok domains
-├── code.ts → code.js        # Main thread — selection listener, PNG export, metadata extraction
-├── ui.html                  # UI thread — persona picker, SSE client, annotation overlay renderer
+├── code.ts → code.js        # Main thread — selection listener, JPEG export, metadata extraction
+├── ui.html                  # UI thread — connect flow, persona picker, SSE client, annotation overlay renderer
 ├── package.json             # Build scripts: tsc build/watch
 └── tsconfig.json            # TypeScript strict config targeting ES6
 
 tests/
 ├── test_models.py           # Pydantic model validation and edge cases
 ├── test_personas.py         # Persona definitions and lookup
-├── test_agent.py            # Agent query with mocked Claude SDK
+├── test_agent.py            # Agent query with mocked pydantic-ai
 ├── test_feedback_endpoint.py # FastAPI TestClient endpoint tests
 └── test_integration.py      # End-to-end flow tests with mocked agent
 ```
 
 ## Architecture
 
-**Data flow:** Figma Plugin → FastAPI Backend → Claude Agent SDK → SSE back to Plugin
+**Data flow:** Figma Plugin → FastAPI Backend → pydantic-ai → SSE back to Plugin
 
-1. **Plugin main thread** (`code.ts`): listens for selection changes, exports selected frames as base64 PNG at 2x scale, extracts metadata (dimensions, text content, colors, component names)
-2. **Plugin UI thread** (`ui.html`): sends POST to `/api/feedback/stream` with base64 images + metadata, parses SSE events, renders feedback cards with annotation overlays
+1. **Plugin main thread** (`code.ts`): listens for selection changes, exports selected frames as base64 JPEG at 2x scale, extracts metadata (dimensions, text content, colors, component names)
+2. **Plugin UI thread** (`ui.html`): connects to backend first (`GET /api/personas`), then sends POST to `/api/feedback/stream` with base64 images + metadata, parses SSE events, renders feedback cards with annotation overlays
 3. **Backend router** (`feedback.py`): validates request, normalizes single/multi-frame format, returns `StreamingResponse` with SSE events
-4. **Agent** (`persona_agent.py`): for each persona, saves base64 image to temp file, builds a prompt instructing the agent to `Read` the screenshot, runs `query()` with structured output format, returns `PersonaFeedback`
+4. **Agent** (`persona_agent.py`): for each persona, decodes base64 images, builds `BinaryContent` for inline vision, runs pydantic-ai agent with `output_type=PersonaFeedback`, returns structured feedback
 5. **Streaming** (`stream_all_feedback`): runs all persona agents concurrently via `asyncio.create_task`, yields results through an `asyncio.Queue` as each completes
 
 ## Key Constraints
@@ -310,10 +320,10 @@ tests/
 - **Figma sandbox**: only the UI thread (`ui.html`) can make network calls. The main thread (`code.ts`) can only talk to the UI via `postMessage`. All HTTP requests originate from `ui.html`.
 - **Network allowlist**: domains must be in `manifest.json` > `networkAccess.allowedDomains`. Currently allows `*.ngrok-free.app` and `*.ngrok-free.dev`.
 - **Document access**: `documentAccess: "dynamic-page"` in manifest — required for `getMainComponentAsync()`.
-- **Agent SDK**: each `query()` spawns a CLI subprocess. `max_turns=3` (needs 3 turns: read image → analyze → structured output). `allowed_tools=["Read"]`, `permission_mode="bypassPermissions"`.
-- **Temp file pattern**: base64 images are decoded to temp `.png` files, paths passed in the prompt, agent uses `Read` tool to view them, files are cleaned up in `finally` block.
+- **pydantic-ai Agent**: uses `output_type=PersonaFeedback` for structured output. Model configurable via `MODEL_NAME` env var (default: `openai-responses:gpt-5-mini`). Uses OpenAI Responses API via pydantic-ai's `OpenAIResponsesModel`.
+- **Inline vision**: images passed inline as `BinaryContent(data=jpeg_bytes, media_type='image/jpeg')` — no temp files needed.
 - **CORS**: `allow_origins=["*"]` — permissive for development. Tighten for production.
-- **Auth**: Claude Agent SDK uses Claude Code CLI session (`claude login`) or `ANTHROPIC_API_KEY` env var.
+- **Auth**: requires `OPENAI_API_KEY` env var in `.env`.
 
 ## Patterns
 
@@ -324,19 +334,19 @@ The `/api/feedback/stream` endpoint uses `StreamingResponse` with `text/event-st
 - `event: done\ndata: {}` — signals all personas finished
 
 ### Pydantic Models
-`PersonaFeedback` serves double duty: it's the API response model AND the agent's `output_format` schema (via `model_json_schema()`). Change the model → agent output changes automatically.
+`PersonaFeedback` serves double duty: it's the API response model AND the agent's `output_type` schema. Change the model → agent output changes automatically.
 
 ### Adding a New Persona
-1. Add entry to `PERSONAS` dict in `api/personas/definitions.py`
-2. Add checkbox in `ui.html` persona list (search for `persona-list`)
-3. No backend changes needed — router dynamically reads from `PERSONAS`
+1. Add a `.json` file to the `personas/` directory with `id`, `label`, and `system_prompt` fields
+2. Restart the backend
+3. No code changes needed — the plugin fetches personas dynamically from `GET /api/personas`
 
 ### Annotation Coordinates
 Annotations use percentage-based coordinates (`x_pct`, `y_pct`, `width_pct`, `height_pct`) relative to the frame dimensions. The `frame_index` field maps annotations to specific frames in multi-frame flows.
 
 ## Testing
 
-Tests use `pytest` with `pytest-asyncio` (auto mode). Agent SDK calls are mocked — tests never hit the real Claude API.
+Tests use `pytest` with `pytest-asyncio` (auto mode). pydantic-ai agent calls are mocked — tests never hit the real API.
 
 - `test_models.py`: validates Pydantic schemas accept/reject correctly
 - `test_personas.py`: persona definitions exist and `get_persona()` works
