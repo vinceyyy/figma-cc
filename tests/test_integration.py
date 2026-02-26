@@ -1,97 +1,13 @@
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from api.main import app
 from api.models.request import DesignMetadata, Dimensions, FrameData
-from api.models.response import PersonaFeedback
 from tests import TEST_API_KEY
 
 from .conftest import TINY_PNG
 
 API_KEY_HEADER = {"X-API-Key": TEST_API_KEY}
-
-MOCK_FEEDBACK_DETAILED = PersonaFeedback(
-    persona="first_time_user",
-    persona_label="First-Time User",
-    overall_impression="The design looks clean but the navigation is confusing.",
-    issues=[
-        {
-            "severity": "high",
-            "area": "Navigation",
-            "description": "No clear visual hierarchy in the menu",
-            "suggestion": "Add visual weight to primary navigation items",
-        }
-    ],
-    positives=["Good use of whitespace", "Readable typography"],
-    score=6,
-    annotations=[
-        {
-            "x_pct": 0.0,
-            "y_pct": 0.0,
-            "width_pct": 100.0,
-            "height_pct": 8.0,
-            "issue_index": 0,
-            "label": "Navigation",
-        }
-    ],
-)
-
-
-MOCK_FLOW_FEEDBACK = PersonaFeedback(
-    persona="first_time_user",
-    persona_label="First-Time User",
-    overall_impression="The flow from login to dashboard is clear but the transition is jarring.",
-    issues=[
-        {
-            "severity": "medium",
-            "area": "Transition",
-            "description": "No loading state between login and dashboard",
-            "suggestion": "Add a brief loading indicator after login submit",
-        }
-    ],
-    positives=["Consistent header across screens"],
-    score=7,
-    annotations=[
-        {
-            "frame_index": 0,
-            "x_pct": 30.0,
-            "y_pct": 60.0,
-            "width_pct": 40.0,
-            "height_pct": 10.0,
-            "issue_index": 0,
-            "label": "Login button",
-        },
-        {
-            "frame_index": 1,
-            "x_pct": 0.0,
-            "y_pct": 0.0,
-            "width_pct": 100.0,
-            "height_pct": 5.0,
-            "issue_index": 0,
-            "label": "Missing loading state",
-        },
-    ],
-)
-
-
-@pytest.fixture
-def mock_agent_detailed():
-    mock_result = MagicMock()
-    mock_result.output = MOCK_FEEDBACK_DETAILED
-    with patch("api.agents.persona_agent.feedback_agent") as mock_agent:
-        mock_agent.run = AsyncMock(return_value=mock_result)
-        yield mock_agent
-
-
-@pytest.fixture
-def mock_agent_flow():
-    mock_result = MagicMock()
-    mock_result.output = MOCK_FLOW_FEEDBACK
-    with patch("api.agents.persona_agent.feedback_agent") as mock_agent:
-        mock_agent.run = AsyncMock(return_value=mock_result)
-        yield mock_agent
 
 
 @pytest.mark.asyncio

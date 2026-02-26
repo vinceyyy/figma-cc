@@ -3,7 +3,7 @@ import secrets
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
@@ -23,7 +23,7 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
     Uses timing-safe comparison to prevent timing attacks.
     """
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         # Auth disabled when no key is configured
         if not settings.api_key:
             return await call_next(request)
@@ -58,5 +58,5 @@ app.include_router(feedback_router)
 
 
 @app.get("/health")
-async def health() -> dict:
+async def health() -> dict[str, str | bool]:
     return {"status": "ok", "auth_required": bool(settings.api_key)}

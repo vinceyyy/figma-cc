@@ -47,4 +47,4 @@ def get_persona(persona_id: str) -> Persona | None:
 
 def list_personas() -> list[dict[str, str]]:
     """Return list of {id, label} for all loaded personas (for API response)."""
-    return [p.model_dump(include={"id", "label"}) for p in PERSONAS.values()]
+    return [{"id": p.id, "label": p.label} for p in PERSONAS.values()]

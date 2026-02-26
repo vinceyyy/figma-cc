@@ -1,4 +1,4 @@
-# Synthetic Design Feedback
+# Synthetic Studio
 
 ## User Persona
 
@@ -201,7 +201,7 @@ Tell them the full absolute path to `figma-plugin/manifest.json` so they can fin
 
 > "Great! Now let's use the plugin:
 >
-> 1. In Figma, right-click on the canvas → **Plugins** → **Development** → **Synthetic Design Feedback**
+> 1. In Figma, right-click on the canvas → **Plugins** → **Development** → **Synthetic Studio**
 > 2. The plugin panel will open. Paste this URL into the **Backend URL** field:
 >    `<the ngrok URL from step 8>` and click **Connect**
 > 3. Once connected, the available personas will load. Select one or more frames in your design,
@@ -280,8 +280,9 @@ ngrok http 8000                                          # expose backend to Fig
 
 ```
 api/
-├── main.py                  # FastAPI app — CORS middleware, router mounting, /health endpoint
-├── config.py                # pydantic-settings: host, port, reads .env
+├── main.py                  # FastAPI app — CORS, API key middleware, router mounting, /health
+├── config.py                # pydantic-settings: host, port, api_key, reads .env
+├── logging.py               # Loguru setup, stdlib interception, request logging middleware
 ├── agents/
 │   └── persona_agent.py     # pydantic-ai agent — inline vision, structured output,
 │                            #   parallel execution, SSE streaming generator
@@ -303,7 +304,7 @@ personas/
 └── *.json                       # Add new personas as JSON files here
 
 figma-plugin/
-├── manifest.json            # Plugin ID, documentAccess: dynamic-page, allowed ngrok domains
+├── manifest.json            # Plugin ID, documentAccess: dynamic-page, allowed network domains
 ├── code.ts → code.js        # Main thread — selection listener, JPEG export, metadata extraction
 ├── ui.html                  # UI thread — connect flow, persona picker, SSE client, annotation overlay renderer
 ├── biome.json               # Biome v2 config — TS/HTML/CSS linting + formatting
@@ -316,12 +317,18 @@ figma-plugin/
 
 .pre-commit-config.yaml      # Pre-commit hooks: ruff, ty, biome, standard checks
 
+Dockerfile                       # Multi-stage: python:3.13-slim + uv, production deps only
+.dockerignore                    # Excludes .git, tests, figma-plugin, docs from build context
+
 tests/
+├── __init__.py              # Shared test constants (TEST_API_KEY)
+├── conftest.py              # Shared fixtures: mock feedback data, agent mocks, API key setup
 ├── test_models.py           # Pydantic model validation and edge cases
 ├── test_personas.py         # Persona definitions and lookup
 ├── test_agent.py            # Agent query with mocked pydantic-ai
 ├── test_feedback_endpoint.py # FastAPI TestClient endpoint tests
-└── test_integration.py      # End-to-end flow tests with mocked agent
+├── test_integration.py      # End-to-end flow tests with mocked agent
+└── test_logging.py          # Logging middleware and request ID tests
 ```
 
 ## Architecture
@@ -337,13 +344,16 @@ tests/
 ## Key Constraints
 
 - **Figma sandbox**: only the UI thread (`ui.html`) can make network calls. The main thread (`code.ts`) can only talk to the UI via `postMessage`. All HTTP requests originate from `ui.html`.
-- **Network allowlist**: domains must be in `manifest.json` > `networkAccess.allowedDomains`. Currently allows `*.ngrok-free.app` and `*.ngrok-free.dev`.
+- **Network allowlist**: domains must be in `manifest.json` > `networkAccess.allowedDomains`. Currently allows `*.ngrok-free.app` and `*.ngrok-free.dev` (local dev tunnels). Add your production domain here when deploying.
 - **Document access**: `documentAccess: "dynamic-page"` in manifest — required for `getMainComponentAsync()`.
 - **pydantic-ai Agent**: uses `output_type=PersonaFeedback` for structured output. Model configurable via `MODEL_NAME` env var (default: `openai-responses:gpt-5`). Uses OpenAI Responses API via pydantic-ai's `OpenAIResponsesModel`. Use `gpt-5-mini` for faster/cheaper results at the cost of annotation precision.
 - **Inline vision**: images passed inline as `BinaryContent(data=jpeg_bytes, media_type='image/jpeg')` — no temp files needed.
 - **Coordinate grid overlay**: before sending screenshots to the model, a subtle coordinate grid (tick marks at every 10%, gridlines at 25%/50%/75%) is overlaid on the image. This gives the vision model visual reference points for accurate annotation positioning. The grid is NOT shown in the plugin UI — only the model sees it.
-- **CORS**: `allow_origins=["*"]` — permissive for development. Tighten for production.
-- **Auth**: requires `OPENAI_API_KEY` env var in `.env`.
+- **CORS**: `allow_origins=["*"]` — permissive because CORS is browser-side only; the API key is the real access control.
+- **API key auth**: All endpoints except `/health` require `X-API-Key` header. Uses `secrets.compare_digest()` for
+  timing-safe comparison. Disabled when `API_KEY` env var is empty (local dev). OPTIONS requests bypass auth for CORS
+  preflight compatibility.
+- **Auth**: requires `OPENAI_API_KEY` env var in `.env`. Optionally `API_KEY` for access control.
 - **Code quality**: ruff (lint + format, 120 char line length), ty (type checking), Biome v2 (TS/HTML/CSS). Pre-commit runs all checks on every commit. GitHub Actions CI runs the same checks on every PR and push to main.
 
 ## Patterns
@@ -378,3 +388,16 @@ Tests use `pytest` with `pytest-asyncio` (auto mode) and `pytest-cov` for covera
 Run all: `uv run pytest tests/ -v`
 
 Coverage reports are generated automatically (configured in `pyproject.toml` addopts): terminal output with missing lines + `coverage.xml` for CI artifact upload.
+
+## Deployment
+
+A `Dockerfile` is included for production deployment. The image runs uvicorn on port 8000 and
+requires `OPENAI_API_KEY` and optionally `API_KEY` as environment variables.
+
+```bash
+docker build -t synthetic-studio .
+docker run -p 8000:8000 -e OPENAI_API_KEY=sk-... -e API_KEY=your-key synthetic-studio
+```
+
+When deploying, add your production domain to `figma-plugin/manifest.json` > `networkAccess.allowedDomains`
+so the plugin can reach the backend.
