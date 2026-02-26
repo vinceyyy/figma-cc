@@ -1,9 +1,8 @@
 import json
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 @dataclass
@@ -33,7 +32,7 @@ def load_personas(directory: str | Path) -> dict[str, Persona]:
             system_prompt=data["system_prompt"],
         )
         personas[persona.id] = persona
-        logger.info("Loaded persona: %s (%s)", persona.id, json_file.name)
+        logger.info("Loaded persona: {pid} ({file})", pid=persona.id, file=json_file.name)
 
     if not personas:
         raise ValueError(f"No persona JSON files found in: {dir_path.resolve()}")
@@ -45,6 +44,7 @@ def load_personas(directory: str | Path) -> dict[str, Persona]:
 from api.config import settings
 
 PERSONAS = load_personas(settings.personas_dir)
+logger.info("Loaded {count} personas total", count=len(PERSONAS))
 
 
 def get_persona(persona_id: str) -> Persona | None:
