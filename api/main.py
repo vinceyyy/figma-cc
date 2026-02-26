@@ -10,12 +10,12 @@ setup_logging(settings.log_level)
 app = FastAPI(title="Figma AI Feedback")
 
 app.add_middleware(
-    CORSMiddleware,
+    CORSMiddleware,  # ty: ignore[invalid-argument-type]  # Starlette ParamSpec typing limitation
     allow_origins=["*"],  # Permissive for prototype; tighten for production
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
 )
-app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(RequestLoggingMiddleware)  # ty: ignore[invalid-argument-type]  # same Starlette issue
 
 app.include_router(feedback_router)
 

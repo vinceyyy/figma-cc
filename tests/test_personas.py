@@ -1,8 +1,8 @@
 import json
-import pytest
-from pathlib import Path
 
-from api.personas.definitions import Persona, load_personas, get_persona, list_personas, PERSONAS
+import pytest
+
+from api.personas.definitions import PERSONAS, get_persona, list_personas, load_personas
 
 
 @pytest.fixture

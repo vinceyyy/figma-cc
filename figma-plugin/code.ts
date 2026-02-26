@@ -1,9 +1,9 @@
 figma.showUI(__html__, { width: 560, height: 600 });
 
 // Send saved backend URL to UI on startup
-figma.clientStorage.getAsync('backendUrl').then(url => {
+figma.clientStorage.getAsync("backendUrl").then((url) => {
   if (url) {
-    figma.ui.postMessage({ type: 'saved-backend-url', url });
+    figma.ui.postMessage({ type: "saved-backend-url", url });
   }
 });
 
@@ -116,7 +116,7 @@ function toHex(value: number): string {
 // Handle messages from UI
 figma.ui.onmessage = async (msg: { type: string; width?: number; height?: number; url?: string }) => {
   if (msg.type === "resize") {
-    figma.ui.resize(msg.width!, msg.height!);
+    figma.ui.resize(msg.width ?? 560, msg.height ?? 600);
     return;
   }
   if (msg.type === "save-backend-url") {

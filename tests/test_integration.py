@@ -1,10 +1,13 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from api.main import app
 from api.models.response import PersonaFeedback
 
+# Minimal valid 1x1 PNG as base64
+TINY_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 
 MOCK_FEEDBACK = PersonaFeedback(
     persona="first_time_user",
@@ -95,7 +98,7 @@ async def test_full_feedback_flow(mock_agent_run):
         resp = await client.post(
             "/api/feedback",
             json={
-                "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                "image": TINY_PNG,
                 "metadata": {
                     "frame_name": "Test Frame",
                     "dimensions": {"width": 1440, "height": 900},
@@ -132,11 +135,11 @@ async def test_multi_frame_flow(mock_agent_flow):
             json={
                 "frames": [
                     {
-                        "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                        "image": TINY_PNG,
                         "metadata": {"frame_name": "Login", "dimensions": {"width": 1440, "height": 900}},
                     },
                     {
-                        "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                        "image": TINY_PNG,
                         "metadata": {"frame_name": "Dashboard", "dimensions": {"width": 1440, "height": 900}},
                     },
                 ],
@@ -164,10 +167,12 @@ async def test_stream_feedback_yields_results(mock_agent_run):
     results = []
     async for fb in stream_all_feedback(
         persona_ids=["first_time_user"],
-        frames=[{
-            "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-            "metadata": {"frame_name": "Test", "dimensions": {"width": 1440, "height": 900}},
-        }],
+        frames=[
+            {
+                "image": TINY_PNG,
+                "metadata": {"frame_name": "Test", "dimensions": {"width": 1440, "height": 900}},
+            }
+        ],
     ):
         results.append(fb)
 

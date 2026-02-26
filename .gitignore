@@ -2,7 +2,6 @@
 *.log
 *.log.*
 node_modules
-package-lock.json
 
 out/
 dist/
@@ -15,3 +14,8 @@ __pycache__/
 
 # OS
 .DS_Store
+
+# Coverage
+coverage.xml
+htmlcov/
+.coverage

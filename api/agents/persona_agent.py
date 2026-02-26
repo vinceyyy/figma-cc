@@ -28,7 +28,7 @@ def _downscale_if_needed(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION)
     if max(w, h) > max_dim:
         scale = max_dim / max(w, h)
         new_size = (int(w * scale), int(h * scale))
-        img = img.resize(new_size, Image.LANCZOS)
+        img = img.resize(new_size, Image.LANCZOS)  # ty: ignore[unresolved-attribute]
         logger.info("Downscaled image from {ow}x{oh} to {nw}x{nh}", ow=w, oh=h, nw=new_size[0], nh=new_size[1])
     if img.mode in ("RGBA", "LA", "P"):
         img = img.convert("RGB")
@@ -53,7 +53,7 @@ def _add_coordinate_grid(image_bytes: bytes) -> bytes:
     font_size = max(11, min(w, h) // 50)
     try:
         font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", size=font_size)
-    except (IOError, OSError):
+    except OSError:
         font = ImageFont.load_default()
 
     # Subtle full gridlines at 25% intervals
@@ -108,17 +108,11 @@ def _build_user_prompt(
     is_flow = len(frames) > 1
 
     if is_flow:
-        parts = [
-            "You are analyzing a user flow consisting of multiple screens. "
-            "Analyze the complete user journey.\n"
-        ]
+        parts = ["You are analyzing a user flow consisting of multiple screens. Analyze the complete user journey.\n"]
         for idx, frame in enumerate(frames):
             meta = frame["metadata"]
             img_w, img_h = image_dimensions[idx]
-            parts.append(
-                f"Frame {idx + 1}: \"{meta['frame_name']}\" "
-                f"(image size: {img_w}x{img_h} pixels)"
-            )
+            parts.append(f'Frame {idx + 1}: "{meta["frame_name"]}" (image size: {img_w}x{img_h} pixels)')
         parts.append(
             "\nThe screenshots are attached in order. Focus on:\n"
             "- Transitions between screens (is the flow logical?)\n"
@@ -221,17 +215,17 @@ async def get_persona_feedback(
     )
 
     duration_ms = (time.perf_counter() - t0) * 1000
+    output: PersonaFeedback = result.output  # type: ignore[assignment]  # pydantic-ai generic not inferred by ty
     logger.info(
         "Completed query for persona={persona_id}, score={score}, duration_ms={duration_ms:.0f}",
         persona_id=persona.id,
-        score=result.output.score,
+        score=output.score,
         duration_ms=duration_ms,
     )
-    if result.output.annotations:
-        for ann in result.output.annotations:
+    if output.annotations:
+        for ann in output.annotations:
             logger.debug(
-                "Annotation: frame={fi} issue={ii} label={label} "
-                "x={x:.1f}% y={y:.1f}% w={w:.1f}% h={h:.1f}%",
+                "Annotation: frame={fi} issue={ii} label={label} x={x:.1f}% y={y:.1f}% w={w:.1f}% h={h:.1f}%",
                 fi=ann.frame_index,
                 ii=ann.issue_index,
                 label=ann.label,
@@ -240,7 +234,7 @@ async def get_persona_feedback(
                 w=ann.width_pct,
                 h=ann.height_pct,
             )
-    return result.output
+    return output
 
 
 async def get_all_feedback(
@@ -258,7 +252,7 @@ async def get_all_feedback(
     coros = [get_persona_feedback(persona, frames, context) for persona in valid_personas]
     results = await asyncio.gather(*coros, return_exceptions=True)
     feedback = []
-    for persona, result in zip(valid_personas, results):
+    for persona, result in zip(valid_personas, results, strict=True):
         if isinstance(result, Exception):
             logger.error("Persona '{pid}' failed: {err}", pid=persona.id, err=result)
             continue

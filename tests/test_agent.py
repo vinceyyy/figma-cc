@@ -5,6 +5,8 @@ import pytest
 from api.models.response import PersonaFeedback
 from api.personas.definitions import get_persona
 
+# Minimal valid 1x1 PNG as base64
+TINY_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 
 MOCK_FEEDBACK = PersonaFeedback(
     persona="first_time_user",
@@ -35,7 +37,7 @@ async def test_get_persona_feedback(mock_agent_run):
         persona=persona,
         frames=[
             {
-                "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                "image": TINY_PNG,
                 "metadata": {
                     "frame_name": "Test",
                     "dimensions": {"width": 1440, "height": 900},
@@ -64,11 +66,11 @@ async def test_get_persona_feedback_multi_frame(mock_agent_run):
         persona=persona,
         frames=[
             {
-                "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                "image": TINY_PNG,
                 "metadata": {"frame_name": "Login", "dimensions": {"width": 1440, "height": 900}},
             },
             {
-                "image": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                "image": TINY_PNG,
                 "metadata": {"frame_name": "Dashboard", "dimensions": {"width": 1440, "height": 900}},
             },
         ],
