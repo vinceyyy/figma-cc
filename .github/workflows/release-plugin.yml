@@ -1,0 +1,42 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Release Figma Plugin
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: figma-plugin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: figma-plugin/package-lock.json
+
+      - run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Package plugin
+        run: |
+          mkdir -p ../dist
+          zip -j ../dist/synthetic-studio-figma-plugin.zip \
+            manifest.json code.js ui.html
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/synthetic-studio-figma-plugin.zip
+          generate_release_notes: true

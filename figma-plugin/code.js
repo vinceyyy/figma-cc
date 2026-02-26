@@ -1,4 +1,13 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 figma.showUI(__html__, { width: 560, height: 600 });
 // Send saved backend URL and API key to UI on startup
 figma.clientStorage.getAsync("backendUrl").then((url) => {
@@ -17,38 +26,40 @@ figma.on("selectionchange", () => {
 });
 // Send initial selection info
 sendSelectionInfo();
-async function sendSelectionInfo() {
-    const selection = figma.currentPage.selection;
-    if (selection.length === 0) {
-        figma.ui.postMessage({ type: "selection-cleared" });
-        return;
-    }
-    if (selection.length === 1) {
-        const node = selection[0];
-        const metadata = {
-            frameName: node.name,
-            dimensions: {
-                width: Math.round(node.width),
-                height: Math.round(node.height),
-            },
-            textContent: extractTextContent(node),
-            colors: extractColors(node),
-            componentNames: await extractComponentNames(node),
-        };
-        figma.ui.postMessage({ type: "selection-info", metadata });
-    }
-    else {
-        // Multiple frames: sort by x position (left to right)
-        const sorted = [...selection].sort((a, b) => a.x - b.x);
-        const frames = sorted.map((node) => ({
-            frameName: node.name,
-            dimensions: {
-                width: Math.round(node.width),
-                height: Math.round(node.height),
-            },
-        }));
-        figma.ui.postMessage({ type: "multi-selection-info", frames });
-    }
+function sendSelectionInfo() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const selection = figma.currentPage.selection;
+        if (selection.length === 0) {
+            figma.ui.postMessage({ type: "selection-cleared" });
+            return;
+        }
+        if (selection.length === 1) {
+            const node = selection[0];
+            const metadata = {
+                frameName: node.name,
+                dimensions: {
+                    width: Math.round(node.width),
+                    height: Math.round(node.height),
+                },
+                textContent: extractTextContent(node),
+                colors: extractColors(node),
+                componentNames: yield extractComponentNames(node),
+            };
+            figma.ui.postMessage({ type: "selection-info", metadata });
+        }
+        else {
+            // Multiple frames: sort by x position (left to right)
+            const sorted = [...selection].sort((a, b) => a.x - b.x);
+            const frames = sorted.map((node) => ({
+                frameName: node.name,
+                dimensions: {
+                    width: Math.round(node.width),
+                    height: Math.round(node.height),
+                },
+            }));
+            figma.ui.postMessage({ type: "multi-selection-info", frames });
+        }
+    });
 }
 function extractTextContent(node) {
     const texts = [];
@@ -83,19 +94,21 @@ function extractColors(node) {
     walk(node);
     return [...seen];
 }
-async function extractComponentNames(node) {
-    const names = [];
-    if (node.type === "INSTANCE") {
-        const comp = await node.getMainComponentAsync();
-        if (comp)
-            names.push(comp.name);
-    }
-    if ("children" in node) {
-        for (const child of node.children) {
-            names.push(...(await extractComponentNames(child)));
+function extractComponentNames(node) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const names = [];
+        if (node.type === "INSTANCE") {
+            const comp = yield node.getMainComponentAsync();
+            if (comp)
+                names.push(comp.name);
         }
-    }
-    return names;
+        if ("children" in node) {
+            for (const child of node.children) {
+                names.push(...(yield extractComponentNames(child)));
+            }
+        }
+        return names;
+    });
 }
 function toHex(value) {
     return Math.round(value * 255)
@@ -103,10 +116,10 @@ function toHex(value) {
         .padStart(2, "0");
 }
 // Handle messages from UI
-figma.ui.onmessage = async (msg) => {
+figma.ui.onmessage = (msg) => __awaiter(void 0, void 0, void 0, function* () {
     switch (msg.type) {
         case "resize":
-            figma.ui.resize(msg.width ?? 560, msg.height ?? 600);
+            figma.ui.resize(msg.width || 560, msg.height || 600);
             return;
         case "save-backend-url":
             figma.clientStorage.setAsync("backendUrl", msg.url);
@@ -133,7 +146,7 @@ figma.ui.onmessage = async (msg) => {
                         total: sorted.length,
                         frameName: node.name,
                     });
-                    const imageData = await node.exportAsync({
+                    const imageData = yield node.exportAsync({
                         format: "JPG",
                         constraint: { type: "SCALE", value: 2 },
                     });
@@ -148,7 +161,7 @@ figma.ui.onmessage = async (msg) => {
                             },
                             textContent: extractTextContent(node),
                             colors: extractColors(node),
-                            componentNames: await extractComponentNames(node),
+                            componentNames: yield extractComponentNames(node),
                         },
                     });
                 }
@@ -171,4 +184,4 @@ figma.ui.onmessage = async (msg) => {
             figma.closePlugin();
             return;
     }
-};
+});

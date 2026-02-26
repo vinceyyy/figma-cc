@@ -130,7 +130,7 @@ function toHex(value: number): string {
 figma.ui.onmessage = async (msg: PluginMessage) => {
   switch (msg.type) {
     case "resize":
-      figma.ui.resize(msg.width ?? 560, msg.height ?? 600);
+      figma.ui.resize(msg.width || 560, msg.height || 600);
       return;
 
     case "save-backend-url":
