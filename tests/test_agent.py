@@ -1,31 +1,10 @@
-from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
 
+from api.models.request import DesignMetadata, Dimensions, FrameData
 from api.models.response import PersonaFeedback
 from api.personas.definitions import get_persona
 
-# Minimal valid 1x1 PNG as base64
-TINY_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-
-MOCK_FEEDBACK = PersonaFeedback(
-    persona="first_time_user",
-    persona_label="First-Time User",
-    overall_impression="Looks clean but confusing navigation.",
-    issues=[],
-    positives=["Good colors"],
-    score=7,
-)
-
-
-@pytest.fixture
-def mock_agent_run():
-    """Mock feedback_agent.run() to return a canned PersonaFeedback."""
-    mock_result = MagicMock()
-    mock_result.output = MOCK_FEEDBACK
-    with patch("api.agents.persona_agent.feedback_agent") as mock_agent:
-        mock_agent.run = AsyncMock(return_value=mock_result)
-        yield mock_agent
+from .conftest import TINY_PNG
 
 
 @pytest.mark.asyncio
@@ -36,13 +15,13 @@ async def test_get_persona_feedback(mock_agent_run):
     result = await get_persona_feedback(
         persona=persona,
         frames=[
-            {
-                "image": TINY_PNG,
-                "metadata": {
-                    "frame_name": "Test",
-                    "dimensions": {"width": 1440, "height": 900},
-                },
-            }
+            FrameData(
+                image=TINY_PNG,
+                metadata=DesignMetadata(
+                    frame_name="Test",
+                    dimensions=Dimensions(width=1440, height=900),
+                ),
+            )
         ],
     )
 
@@ -65,14 +44,20 @@ async def test_get_persona_feedback_multi_frame(mock_agent_run):
     result = await get_persona_feedback(
         persona=persona,
         frames=[
-            {
-                "image": TINY_PNG,
-                "metadata": {"frame_name": "Login", "dimensions": {"width": 1440, "height": 900}},
-            },
-            {
-                "image": TINY_PNG,
-                "metadata": {"frame_name": "Dashboard", "dimensions": {"width": 1440, "height": 900}},
-            },
+            FrameData(
+                image=TINY_PNG,
+                metadata=DesignMetadata(
+                    frame_name="Login",
+                    dimensions=Dimensions(width=1440, height=900),
+                ),
+            ),
+            FrameData(
+                image=TINY_PNG,
+                metadata=DesignMetadata(
+                    frame_name="Dashboard",
+                    dimensions=Dimensions(width=1440, height=900),
+                ),
+            ),
         ],
         context="Login to dashboard flow",
     )

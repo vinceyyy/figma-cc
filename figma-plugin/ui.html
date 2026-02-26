@@ -178,12 +178,10 @@
     position: relative;
   }
   .annotation-container img {
-    border-radius: 0 0 6px 6px;
-  }
-  .annotation-container img {
     display: block;
     width: 100%;
     height: auto;
+    border-radius: 0 0 6px 6px;
   }
   .annotation-box {
     position: absolute;
@@ -659,12 +657,9 @@
   };
 
   // Build the progress indicator UI
-  function buildProgressUI(personaIds) {
+  function buildProgressUI(_personaIds) {
     const container = document.getElementById('feedbackCards');
     container.innerHTML = '';
-
-    // Store total for all-fail detection
-    window._progressTotal = personaIds.length;
 
     const html = `
       <div class="progress-container" id="progressContainer">
@@ -794,7 +789,7 @@
               try {
                 JSON.parse(jsonStr); // validate
                 setProgressPhase('Analyzing your design...');
-              } catch (e) {}
+              } catch (e) { console.warn('Failed to parse persona-start event:', e); }
               currentEventType = null;
               continue;
             }
@@ -818,7 +813,7 @@
                 panel.id = panelId;
                 panel.innerHTML = `<div class="error-msg">${esc(errData.persona)} failed: ${esc(errData.detail)}</div>`;
                 panelsContainer.appendChild(panel);
-              } catch (e) {}
+              } catch (e) { console.warn('Failed to parse persona-error event:', e); }
 
               // Update remaining indicator
               const remaining = personas.length - allFeedback.length - failedCount;
@@ -867,7 +862,7 @@
               panel.id = panelId;
               renderSingleFeedbackCard(panel, fb);
               panelsContainer.appendChild(panel);
-            } catch (e) {}
+            } catch (e) { console.warn('Failed to parse feedback event:', e); }
             currentEventType = null;
           }
           if (line.startsWith('event: done')) {
@@ -1031,7 +1026,6 @@
             .forEach(b => { b.classList.remove('highlight'); });
       });
       issueEl.addEventListener('click', () => {
-        const idx = issueEl.dataset.issueIndex;
         // In 2-col mode, look in the shared images column; in 1-col mode, look in the card
         const searchScope = twoColMode
           ? document.querySelector('.images-column') || card
@@ -1070,30 +1064,7 @@
       });
     });
 
-    // Wire up fixed tooltip for annotation boxes in this card
-    const tooltip = document.getElementById('annTooltip');
-    card.querySelectorAll('.annotation-box[data-tip-num]').forEach(box => {
-      box.addEventListener('mouseenter', (e) => {
-        const sevColors = { high: '#e53e3e', medium: '#d69e2e', low: '#38a169' };
-        const sev = box.dataset.tipSev;
-        const color = sevColors[sev] || '#888';
-        let html = `<span style="display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;text-transform:uppercase">${esc(sev)}</span>`
-          + `<strong style="color:#fff;font-size:12px">#${esc(box.dataset.tipNum)} ${esc(box.dataset.tipArea)}</strong>`
-          + `<div style="margin-top:4px;color:#ccc">${esc(box.dataset.tipDesc)}</div>`;
-        if (box.dataset.tipSug) {
-          html += `<div style="margin-top:4px;color:#7ecbff;font-style:italic">\u2192 ${esc(box.dataset.tipSug)}</div>`;
-        }
-        tooltip.innerHTML = html;
-        tooltip.classList.add('visible');
-        positionTooltip(e, box);
-      });
-      box.addEventListener('mousemove', (e) => {
-        positionTooltip(e, box);
-      });
-      box.addEventListener('mouseleave', () => {
-        tooltip.classList.remove('visible');
-      });
-    });
+    wireAnnotationTooltips(card);
 
     container.appendChild(card);
   }
@@ -1164,26 +1135,7 @@
       wrapper.appendChild(box);
     });
 
-    // Wire tooltips for the new annotation boxes
-    const tooltip = document.getElementById('annTooltip');
-    imagesCol.querySelectorAll('.annotation-box[data-tip-num]').forEach(box => {
-      box.addEventListener('mouseenter', (e) => {
-        const sevColors = { high: '#e53e3e', medium: '#d69e2e', low: '#38a169' };
-        const sev = box.dataset.tipSev;
-        const color = sevColors[sev] || '#888';
-        let html = `<span style="display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;text-transform:uppercase">${esc(sev)}</span>`
-          + `<strong style="color:#fff;font-size:12px">#${esc(box.dataset.tipNum)} ${esc(box.dataset.tipArea)}</strong>`
-          + `<div style="margin-top:4px;color:#ccc">${esc(box.dataset.tipDesc)}</div>`;
-        if (box.dataset.tipSug) {
-          html += `<div style="margin-top:4px;color:#7ecbff;font-style:italic">\u2192 ${esc(box.dataset.tipSug)}</div>`;
-        }
-        tooltip.innerHTML = html;
-        tooltip.classList.add('visible');
-        positionTooltip(e, box);
-      });
-      box.addEventListener('mousemove', (e) => positionTooltip(e, box));
-      box.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
-    });
+    wireAnnotationTooltips(imagesCol);
 
     // Wire box hover → highlight corresponding issue in the active panel
     imagesCol.querySelectorAll('.annotation-box[data-issue-index]').forEach(boxEl => {
@@ -1346,6 +1298,28 @@
         panelsContainer.appendChild(panel);
       });
     }
+  }
+
+  function wireAnnotationTooltips(container) {
+    const tooltip = document.getElementById('annTooltip');
+    container.querySelectorAll('.annotation-box[data-tip-num]').forEach(box => {
+      box.addEventListener('mouseenter', (e) => {
+        const sevColors = { high: '#e53e3e', medium: '#d69e2e', low: '#38a169' };
+        const sev = box.dataset.tipSev;
+        const color = sevColors[sev] || '#888';
+        let html = `<span style="display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;text-transform:uppercase">${esc(sev)}</span>`
+          + `<strong style="color:#fff;font-size:12px">#${esc(box.dataset.tipNum)} ${esc(box.dataset.tipArea)}</strong>`
+          + `<div style="margin-top:4px;color:#ccc">${esc(box.dataset.tipDesc)}</div>`;
+        if (box.dataset.tipSug) {
+          html += `<div style="margin-top:4px;color:#7ecbff;font-style:italic">\u2192 ${esc(box.dataset.tipSug)}</div>`;
+        }
+        tooltip.innerHTML = html;
+        tooltip.classList.add('visible');
+        positionTooltip(e, box);
+      });
+      box.addEventListener('mousemove', (e) => positionTooltip(e, box));
+      box.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+    });
   }
 
   function positionTooltip(_e, box) {

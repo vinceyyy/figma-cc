@@ -4,12 +4,12 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from api.main import app
+from api.models.request import DesignMetadata, Dimensions, FrameData
 from api.models.response import PersonaFeedback
 
-# Minimal valid 1x1 PNG as base64
-TINY_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+from .conftest import TINY_PNG
 
-MOCK_FEEDBACK = PersonaFeedback(
+MOCK_FEEDBACK_DETAILED = PersonaFeedback(
     persona="first_time_user",
     persona_label="First-Time User",
     overall_impression="The design looks clean but the navigation is confusing.",
@@ -74,9 +74,9 @@ MOCK_FLOW_FEEDBACK = PersonaFeedback(
 
 
 @pytest.fixture
-def mock_agent_run():
+def mock_agent_detailed():
     mock_result = MagicMock()
-    mock_result.output = MOCK_FEEDBACK
+    mock_result.output = MOCK_FEEDBACK_DETAILED
     with patch("api.agents.persona_agent.feedback_agent") as mock_agent:
         mock_agent.run = AsyncMock(return_value=mock_result)
         yield mock_agent
@@ -92,7 +92,7 @@ def mock_agent_flow():
 
 
 @pytest.mark.asyncio
-async def test_full_feedback_flow(mock_agent_run):
+async def test_full_feedback_flow(mock_agent_detailed):
     """E2E integration test: HTTP request -> endpoint -> agent (mocked) -> parsed response."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.post(
@@ -168,10 +168,13 @@ async def test_stream_feedback_yields_results(mock_agent_run):
     async for fb in stream_all_feedback(
         persona_ids=["first_time_user"],
         frames=[
-            {
-                "image": TINY_PNG,
-                "metadata": {"frame_name": "Test", "dimensions": {"width": 1440, "height": 900}},
-            }
+            FrameData(
+                image=TINY_PNG,
+                metadata=DesignMetadata(
+                    frame_name="Test",
+                    dimensions=Dimensions(width=1440, height=900),
+                ),
+            )
         ],
     ):
         results.append(fb)
