@@ -246,7 +246,6 @@
     overflow-x: auto;
     overflow-y: visible;
     margin-bottom: 8px;
-    padding-top: 40px;
     padding-bottom: 4px;
   }
   .flow-strip .annotation-container {
@@ -321,7 +320,7 @@
     display: flex;
     gap: 0;
     border-bottom: 2px solid #e2e8f0;
-    margin-bottom: 12px;
+    margin-bottom: 6px;
     overflow-x: auto;
   }
   .persona-tab {
@@ -344,7 +343,9 @@
   }
   .persona-tab.active {
     color: #18a0fb;
+    background: #e8f4fd;
     border-bottom-color: #18a0fb;
+    border-radius: 4px 4px 0 0;
   }
   .persona-tab .tab-score {
     display: inline-block;
@@ -567,7 +568,7 @@
 
   function showState(stateId) {
     ['state-connect', 'state-empty', 'state-ready', 'state-results', 'state-error']
-      .forEach(id => document.getElementById(id).style.display = 'none');
+      .forEach(id => { document.getElementById(id).style.display = 'none'; });
     document.getElementById(stateId).style.display = 'block';
   }
 
