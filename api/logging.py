@@ -1,7 +1,15 @@
+import contextvars
 import logging
 import sys
+import time
+import uuid
 
 from loguru import logger
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+
+request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id_var", default="-")
 
 _LOG_FORMAT = (
     "<green>{time:HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | "
@@ -57,3 +65,23 @@ def setup_logging(log_level: str = "DEBUG") -> None:
     # Quiet noisy third-party loggers
     for name in _NOISY_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log every request with a unique request ID, method, path, status, and duration."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        rid = uuid.uuid4().hex[:8]
+        request_id_var.set(rid)
+
+        method = request.method
+        path = request.url.path
+
+        with logger.contextualize(request_id=rid):
+            logger.info(f"{method} {path}")
+            start = time.perf_counter()
+            response = await call_next(request)
+            duration_ms = (time.perf_counter() - start) * 1000
+            logger.info(f"{method} {path} -> {response.status_code} ({duration_ms:.0f}ms)")
+
+        return response
