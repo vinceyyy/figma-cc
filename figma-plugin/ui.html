@@ -854,6 +854,7 @@
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
+      let currentEventType = null;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -863,7 +864,6 @@
         const lines = buffer.split('\n');
         buffer = lines.pop(); // keep incomplete line in buffer
 
-        let currentEventType = null;
         for (const line of lines) {
           if (line.startsWith('event: ')) {
             currentEventType = line.slice(7).trim();
@@ -1178,11 +1178,11 @@
         const sevColors = { high: '#e53e3e', medium: '#d69e2e', low: '#38a169' };
         const sev = box.dataset.tipSev;
         const color = sevColors[sev] || '#888';
-        let html = `<span style="display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;text-transform:uppercase">${sev}</span>`
-          + `<strong style="color:#fff;font-size:12px">#${box.dataset.tipNum} ${box.dataset.tipArea}</strong>`
-          + `<div style="margin-top:4px;color:#ccc">${box.dataset.tipDesc}</div>`;
+        let html = `<span style="display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;text-transform:uppercase">${esc(sev)}</span>`
+          + `<strong style="color:#fff;font-size:12px">#${esc(box.dataset.tipNum)} ${esc(box.dataset.tipArea)}</strong>`
+          + `<div style="margin-top:4px;color:#ccc">${esc(box.dataset.tipDesc)}</div>`;
         if (box.dataset.tipSug) {
-          html += `<div style="margin-top:4px;color:#7ecbff;font-style:italic">\u2192 ${box.dataset.tipSug}</div>`;
+          html += `<div style="margin-top:4px;color:#7ecbff;font-style:italic">\u2192 ${esc(box.dataset.tipSug)}</div>`;
         }
         tooltip.innerHTML = html;
         tooltip.classList.add('visible');
@@ -1272,11 +1272,11 @@
         const sevColors = { high: '#e53e3e', medium: '#d69e2e', low: '#38a169' };
         const sev = box.dataset.tipSev;
         const color = sevColors[sev] || '#888';
-        let html = `<span style="display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;text-transform:uppercase">${sev}</span>`
-          + `<strong style="color:#fff;font-size:12px">#${box.dataset.tipNum} ${box.dataset.tipArea}</strong>`
-          + `<div style="margin-top:4px;color:#ccc">${box.dataset.tipDesc}</div>`;
+        let html = `<span style="display:inline-block;background:${color};color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;margin-right:6px;text-transform:uppercase">${esc(sev)}</span>`
+          + `<strong style="color:#fff;font-size:12px">#${esc(box.dataset.tipNum)} ${esc(box.dataset.tipArea)}</strong>`
+          + `<div style="margin-top:4px;color:#ccc">${esc(box.dataset.tipDesc)}</div>`;
         if (box.dataset.tipSug) {
-          html += `<div style="margin-top:4px;color:#7ecbff;font-style:italic">\u2192 ${box.dataset.tipSug}</div>`;
+          html += `<div style="margin-top:4px;color:#7ecbff;font-style:italic">\u2192 ${esc(box.dataset.tipSug)}</div>`;
         }
         tooltip.innerHTML = html;
         tooltip.classList.add('visible');
