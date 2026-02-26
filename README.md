@@ -78,7 +78,7 @@ Figma Plugin (UI thread)
                                         └── streams results as SSE events ──► Plugin renders incrementally
 ```
 
-Each persona is a pydantic-ai agent with specialized instructions. The agent analyzes the screenshot via inline vision, identifies issues, and returns structured feedback with percentage-based annotation coordinates that the plugin overlays on the design.
+Each persona is a pydantic-ai agent with specialized instructions. The agent analyzes the screenshot via inline vision, identifies issues, and returns structured feedback with percentage-based annotation coordinates that the plugin overlays on the design. Screenshots are preprocessed with a coordinate grid overlay to improve spatial accuracy of annotations.
 
 > **Why pydantic-ai?** pydantic-ai provides model-agnostic structured output via `output_type`, inline vision support, and the ability to switch LLM providers (OpenAI, Anthropic, Google, etc.) by changing a single env var. No vendor lock-in.
 
@@ -90,7 +90,7 @@ Each persona is a pydantic-ai agent with specialized instructions. The agent ana
 | Personas | Plugin UI checkboxes | All 5 selected |
 | Designer context | Plugin UI text area | Optional free text |
 | `OPENAI_API_KEY` | `.env` file | Required |
-| `MODEL_NAME` | `.env` file | `openai:gpt-5-mini` |
+| `MODEL_NAME` | `.env` file | `openai-responses:gpt-5` |
 | `PERSONAS_DIR` | `.env` file | `./personas` |
 | Allowed domains | `figma-plugin/manifest.json` | `*.ngrok-free.app`, `*.ngrok-free.dev` |
 

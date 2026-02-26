@@ -166,14 +166,16 @@
     border-color: #18a0fb;
   }
   .annotation-container {
-    position: relative;
     margin-bottom: 8px;
     border-radius: 6px;
     overflow: visible;
     background: #f0f0f0;
   }
+  .annotation-image-wrapper {
+    position: relative;
+  }
   .annotation-container img {
-    border-radius: 6px;
+    border-radius: 0 0 6px 6px;
   }
   .annotation-container img {
     display: block;
@@ -840,8 +842,10 @@
 
         return `<div class="annotation-container">
                   ${label}
-                  <img src="data:image/png;base64,${img}" alt="Frame ${frameIdx + 1}">
-                  ${boxesHtml}
+                  <div class="annotation-image-wrapper">
+                    <img src="data:image/jpeg;base64,${img}" alt="Frame ${frameIdx + 1}">
+                    ${boxesHtml}
+                  </div>
                 </div>`;
       }).join('');
 
@@ -855,7 +859,9 @@
           : `<span class="frame-label">${frameIdx + 1}.</span>`;
         return `<div class="annotation-container">
                   ${label}
-                  <img src="data:image/png;base64,${img}" alt="Frame ${frameIdx + 1}">
+                  <div class="annotation-image-wrapper">
+                    <img src="data:image/jpeg;base64,${img}" alt="Frame ${frameIdx + 1}">
+                  </div>
                 </div>`;
       }).join('');
       annotationHtml = isFlow ? `<div class="flow-strip">${framesHtml}</div>` : framesHtml;
@@ -994,7 +1000,7 @@
 
     if (!fb.annotations || fb.annotations.length === 0) return;
 
-    const containers = imagesCol.querySelectorAll('.annotation-container');
+    const wrappers = imagesCol.querySelectorAll('.annotation-image-wrapper');
 
     // Sort by area (largest first) so smaller boxes render on top
     const sorted = fb.annotations.map((ann, i) => ({ ann, i }));
@@ -1003,8 +1009,8 @@
     sorted.forEach((entry, renderIdx) => {
       const { ann } = entry;
       const frameIdx = ann.frame_index || 0;
-      const container = containers[frameIdx];
-      if (!container) return;
+      const wrapper = wrappers[frameIdx];
+      if (!wrapper) return;
 
       const issue = fb.issues[ann.issue_index];
       const severity = issue ? issue.severity : 'medium';
@@ -1025,7 +1031,7 @@
       box.style.cssText = `left:${ann.x_pct}%;top:${ann.y_pct}%;width:${ann.width_pct}%;height:${ann.height_pct}%;z-index:${zIndex}`;
       box.innerHTML = `<span class="ann-label">${num}</span>`;
 
-      container.appendChild(box);
+      wrapper.appendChild(box);
     });
 
     // Wire tooltips for the new annotation boxes
@@ -1100,7 +1106,9 @@
           : `<span class="frame-label">${frameIdx + 1}.</span>`;
         return `<div class="annotation-container">
                   ${label}
-                  <img src="data:image/png;base64,${img}" alt="Frame ${frameIdx + 1}">
+                  <div class="annotation-image-wrapper">
+                    <img src="data:image/jpeg;base64,${img}" alt="Frame ${frameIdx + 1}">
+                  </div>
                 </div>`;
       }).join('');
 
