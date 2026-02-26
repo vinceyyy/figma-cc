@@ -320,7 +320,7 @@ tests/
 - **Figma sandbox**: only the UI thread (`ui.html`) can make network calls. The main thread (`code.ts`) can only talk to the UI via `postMessage`. All HTTP requests originate from `ui.html`.
 - **Network allowlist**: domains must be in `manifest.json` > `networkAccess.allowedDomains`. Currently allows `*.ngrok-free.app` and `*.ngrok-free.dev`.
 - **Document access**: `documentAccess: "dynamic-page"` in manifest — required for `getMainComponentAsync()`.
-- **pydantic-ai Agent**: uses `output_type=PersonaFeedback` for structured output. Model configurable via `MODEL_NAME` env var (default: `openai:gpt-5-mini`).
+- **pydantic-ai Agent**: uses `output_type=PersonaFeedback` for structured output. Model configurable via `MODEL_NAME` env var (default: `openai-responses:gpt-5-mini`). Uses OpenAI Responses API via pydantic-ai's `OpenAIResponsesModel`.
 - **Inline vision**: images passed inline as `BinaryContent(data=jpeg_bytes, media_type='image/jpeg')` — no temp files needed.
 - **CORS**: `allow_origins=["*"]` — permissive for development. Tighten for production.
 - **Auth**: requires `OPENAI_API_KEY` env var in `.env`.
