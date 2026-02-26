@@ -1,5 +1,5 @@
-from api.models.request import FeedbackRequest, DesignMetadata, Dimensions, FrameData
-from api.models.response import Annotation, FeedbackResponse, PersonaFeedback, Issue
+from api.models.request import DesignMetadata, Dimensions, FeedbackRequest, FrameData
+from api.models.response import Annotation, FeedbackResponse, Issue, PersonaFeedback
 
 
 def test_feedback_request_valid():
@@ -68,9 +68,7 @@ def test_persona_feedback_with_annotations():
         persona="first_time_user",
         persona_label="First-Time User",
         overall_impression="Looks clean.",
-        issues=[
-            Issue(severity="high", area="CTA", description="Button is too small", suggestion="Make it bigger")
-        ],
+        issues=[Issue(severity="high", area="CTA", description="Button is too small", suggestion="Make it bigger")],
         positives=["Good color scheme"],
         score=7,
         annotations=[

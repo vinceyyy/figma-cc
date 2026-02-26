@@ -1,6 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock, patch
-from httpx import AsyncClient, ASGITransport
+
+import pytest
+from httpx import ASGITransport, AsyncClient
 
 from api.main import app
 from api.models.response import PersonaFeedback
@@ -127,7 +128,7 @@ async def test_feedback_stream_endpoint(mock_feedback):
     async def mock_stream(*args, **kwargs):
         yield mock_feedback
 
-    with patch("api.routers.feedback.stream_all_feedback", return_value=mock_stream()) as mock_fn:
+    with patch("api.routers.feedback.stream_all_feedback", return_value=mock_stream()):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 "/api/feedback/stream",
@@ -145,7 +146,7 @@ async def test_feedback_stream_endpoint(mock_feedback):
         assert "text/event-stream" in resp.headers["content-type"]
         # Parse SSE events from body
         lines = resp.text.strip().split("\n")
-        data_lines = [l for l in lines if l.startswith("data: ")]
+        data_lines = [line for line in lines if line.startswith("data: ")]
         assert len(data_lines) >= 1
         # Last event should be done
         assert "event: done" in resp.text

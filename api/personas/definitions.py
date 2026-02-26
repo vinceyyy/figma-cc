@@ -4,6 +4,8 @@ from pathlib import Path
 
 from loguru import logger
 
+from api.config import settings
+
 
 @dataclass
 class Persona:
@@ -41,8 +43,6 @@ def load_personas(directory: str | Path) -> dict[str, Persona]:
 
 
 # Load personas at import time from configured directory
-from api.config import settings
-
 PERSONAS = load_personas(settings.personas_dir)
 logger.info("Loaded {count} personas total", count=len(PERSONAS))
 
