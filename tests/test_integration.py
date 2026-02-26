@@ -161,7 +161,7 @@ async def test_multi_frame_flow(mock_agent_flow):
 
 @pytest.mark.asyncio
 async def test_stream_feedback_yields_results(mock_agent_run):
-    """Unit test: stream_all_feedback yields PersonaFeedback objects as they complete."""
+    """Unit test: stream_all_feedback yields persona-start events and PersonaFeedback objects."""
     from api.agents.persona_agent import stream_all_feedback
 
     results = []
@@ -176,5 +176,14 @@ async def test_stream_feedback_yields_results(mock_agent_run):
     ):
         results.append(fb)
 
-    assert len(results) == 1
-    assert results[0].persona == "first_time_user"
+    assert len(results) == 2  # persona-start event + PersonaFeedback result
+
+    # First item should be the persona-start event
+    start_event = results[0]
+    assert isinstance(start_event, dict)
+    assert start_event["event"] == "persona-start"
+    assert start_event["persona_id"] == "first_time_user"
+    assert start_event["persona_label"] == "First-Time User"
+
+    # Second item should be the PersonaFeedback result
+    assert results[1].persona == "first_time_user"
