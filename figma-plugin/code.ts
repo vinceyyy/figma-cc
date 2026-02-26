@@ -1,5 +1,11 @@
 figma.showUI(__html__, { width: 560, height: 600 });
 
+type PluginMessage =
+  | { type: "resize"; width?: number; height?: number }
+  | { type: "save-backend-url"; url?: string }
+  | { type: "export-selection" }
+  | { type: "cancel" };
+
 // Send saved backend URL to UI on startup
 figma.clientStorage.getAsync("backendUrl").then((url) => {
   if (url) {
@@ -67,27 +73,28 @@ function extractTextContent(node: SceneNode): string[] {
 }
 
 function extractColors(node: SceneNode): string[] {
-  const colors: string[] = [];
+  const seen = new Set<string>();
 
-  if ("fills" in node && Array.isArray(node.fills)) {
-    for (const fill of node.fills) {
-      if (fill.type === "SOLID" && fill.visible !== false) {
-        const { r, g, b } = fill.color;
-        const hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-        if (!colors.includes(hex)) colors.push(hex);
+  function walk(n: SceneNode) {
+    if ("fills" in n && Array.isArray(n.fills)) {
+      for (const fill of n.fills) {
+        if (fill.type === "SOLID" && fill.visible !== false) {
+          const { r, g, b } = fill.color;
+          const hex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+          seen.add(hex);
+        }
+      }
+    }
+
+    if ("children" in n) {
+      for (const child of n.children) {
+        walk(child);
       }
     }
   }
 
-  if ("children" in node) {
-    for (const child of node.children) {
-      for (const c of extractColors(child)) {
-        if (!colors.includes(c)) colors.push(c);
-      }
-    }
-  }
-
-  return colors;
+  walk(node);
+  return [...seen];
 }
 
 async function extractComponentNames(node: SceneNode): Promise<string[]> {
@@ -114,69 +121,73 @@ function toHex(value: number): string {
 }
 
 // Handle messages from UI
-figma.ui.onmessage = async (msg: { type: string; width?: number; height?: number; url?: string }) => {
-  if (msg.type === "resize") {
-    figma.ui.resize(msg.width ?? 560, msg.height ?? 600);
-    return;
-  }
-  if (msg.type === "save-backend-url") {
-    figma.clientStorage.setAsync("backendUrl", msg.url);
-  }
-  if (msg.type === "export-selection") {
-    const selection = figma.currentPage.selection;
-    if (selection.length === 0) {
-      figma.ui.postMessage({ type: "export-error", error: "No selection" });
+figma.ui.onmessage = async (msg: PluginMessage) => {
+  switch (msg.type) {
+    case "resize":
+      figma.ui.resize(msg.width ?? 560, msg.height ?? 600);
+      return;
+
+    case "save-backend-url":
+      figma.clientStorage.setAsync("backendUrl", msg.url);
+      return;
+
+    case "export-selection": {
+      const selection = figma.currentPage.selection;
+      if (selection.length === 0) {
+        figma.ui.postMessage({ type: "export-error", error: "No selection" });
+        return;
+      }
+
+      try {
+        // Sort by x position for consistent flow order
+        const sorted = [...selection].sort((a, b) => a.x - b.x);
+        const results = [];
+
+        for (let i = 0; i < sorted.length; i++) {
+          const node = sorted[i];
+          figma.ui.postMessage({
+            type: "export-progress",
+            current: i + 1,
+            total: sorted.length,
+            frameName: node.name,
+          });
+
+          const imageData = await (node as ExportMixin).exportAsync({
+            format: "JPG",
+            constraint: { type: "SCALE", value: 2 },
+          });
+          const base64 = figma.base64Encode(imageData);
+          results.push({
+            image: base64,
+            metadata: {
+              frameName: node.name,
+              dimensions: {
+                width: Math.round(node.width),
+                height: Math.round(node.height),
+              },
+              textContent: extractTextContent(node),
+              colors: extractColors(node),
+              componentNames: await extractComponentNames(node),
+            },
+          });
+        }
+
+        if (results.length === 1) {
+          figma.ui.postMessage({ type: "export-result", image: results[0].image, metadata: results[0].metadata });
+        } else {
+          figma.ui.postMessage({ type: "export-result-multi", frames: results });
+        }
+      } catch (error) {
+        figma.ui.postMessage({
+          type: "export-error",
+          error: String(error),
+        });
+      }
       return;
     }
 
-    try {
-      // Sort by x position for consistent flow order
-      const sorted = [...selection].sort((a, b) => a.x - b.x);
-      const results = [];
-
-      for (let i = 0; i < sorted.length; i++) {
-        const node = sorted[i];
-        figma.ui.postMessage({
-          type: "export-progress",
-          current: i + 1,
-          total: sorted.length,
-          frameName: node.name,
-        });
-
-        const imageData = await (node as ExportMixin).exportAsync({
-          format: "JPG",
-          constraint: { type: "SCALE", value: 2 },
-        });
-        const base64 = figma.base64Encode(imageData);
-        results.push({
-          image: base64,
-          metadata: {
-            frameName: node.name,
-            dimensions: {
-              width: Math.round(node.width),
-              height: Math.round(node.height),
-            },
-            textContent: extractTextContent(node),
-            colors: extractColors(node),
-            componentNames: await extractComponentNames(node),
-          },
-        });
-      }
-
-      if (results.length === 1) {
-        figma.ui.postMessage({ type: "export-result", image: results[0].image, metadata: results[0].metadata });
-      } else {
-        figma.ui.postMessage({ type: "export-result-multi", frames: results });
-      }
-    } catch (error) {
-      figma.ui.postMessage({
-        type: "export-error",
-        error: String(error),
-      });
-    }
-  }
-
-  if (msg.type === "cancel") {
-    figma.closePlugin();
+    case "cancel":
+      figma.closePlugin();
+      return;
   }
 };

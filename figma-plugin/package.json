@@ -1,7 +1,7 @@
 {
   "name": "synthetic-design-feedback",
   "version": "1.0.0",
-  "description": "Your Figma Plugin",
+  "description": "Synthetic Design Feedback — Figma Plugin",
   "main": "code.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -10,7 +10,7 @@
     "watch": "npm run build -- --watch"
   },
   "author": "",
-  "license": "",
+  "license": "UNLICENSED",
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
     "@figma/plugin-typings": "^1.123.0",

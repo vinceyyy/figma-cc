@@ -1,14 +1,13 @@
 import json
-from dataclasses import dataclass
 from pathlib import Path
 
 from loguru import logger
+from pydantic import BaseModel
 
 from api.config import settings
 
 
-@dataclass
-class Persona:
+class Persona(BaseModel):
     id: str
     label: str
     system_prompt: str
@@ -26,13 +25,8 @@ def load_personas(directory: str | Path) -> dict[str, Persona]:
 
     personas: dict[str, Persona] = {}
     for json_file in sorted(dir_path.glob("*.json")):
-        with open(json_file) as f:
-            data = json.load(f)
-        persona = Persona(
-            id=data["id"],
-            label=data["label"],
-            system_prompt=data["system_prompt"],
-        )
+        data = json.loads(json_file.read_text())
+        persona = Persona.model_validate(data)
         personas[persona.id] = persona
         logger.debug("Loaded persona: {pid} ({file})", pid=persona.id, file=json_file.name)
 
@@ -53,4 +47,4 @@ def get_persona(persona_id: str) -> Persona | None:
 
 def list_personas() -> list[dict[str, str]]:
     """Return list of {id, label} for all loaded personas (for API response)."""
-    return [{"id": p.id, "label": p.label} for p in PERSONAS.values()]
+    return [p.model_dump(include={"id", "label"}) for p in PERSONAS.values()]

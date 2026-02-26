@@ -13,13 +13,21 @@ router = APIRouter()
 
 
 @router.get("/api/personas")
-async def get_personas():
+async def get_personas() -> list[dict[str, str]]:
     """Return list of available personas (id + label only)."""
     return list_personas()
 
 
-def _normalize_frames(request: FeedbackRequest) -> list[dict]:
-    """Normalize single-frame or multi-frame request into a list of frame dicts."""
+def _validate_personas(persona_ids: list[str]) -> None:
+    """Raise HTTPException if any persona IDs are unknown."""
+    invalid = [p for p in persona_ids if p not in PERSONAS]
+    if invalid:
+        logger.warning("Unknown personas requested: {invalid}", invalid=invalid)
+        raise HTTPException(status_code=400, detail=f"Unknown personas: {invalid}")
+
+
+def _normalize_frames(request: FeedbackRequest) -> list[FrameData]:
+    """Normalize single-frame or multi-frame request into a list of FrameData."""
     if request.frames:
         frames = request.frames
     elif request.image and request.metadata:
@@ -27,21 +35,17 @@ def _normalize_frames(request: FeedbackRequest) -> list[dict]:
     else:
         raise HTTPException(status_code=400, detail="Provide either 'image'+'metadata' or 'frames'")
     logger.debug("Normalized {count} frames", count=len(frames))
-    return [{"image": f.image, "metadata": f.metadata.model_dump()} for f in frames]
+    return frames
 
 
 @router.post("/api/feedback", response_model=FeedbackResponse)
-async def get_feedback(request: FeedbackRequest):
+async def get_feedback(request: FeedbackRequest) -> FeedbackResponse:
     logger.info(
         "Batch feedback request: {persona_count} personas, {frame_count} frames",
         persona_count=len(request.personas),
         frame_count=len(request.frames) if request.frames else 1,
     )
-    invalid = [p for p in request.personas if p not in PERSONAS]
-    if invalid:
-        logger.warning("Unknown personas requested: {invalid}", invalid=invalid)
-        raise HTTPException(status_code=400, detail=f"Unknown personas: {invalid}")
-
+    _validate_personas(request.personas)
     frames = _normalize_frames(request)
 
     feedback = await get_all_feedback(
@@ -54,17 +58,13 @@ async def get_feedback(request: FeedbackRequest):
 
 
 @router.post("/api/feedback/stream")
-async def stream_feedback(request: FeedbackRequest):
+async def stream_feedback(request: FeedbackRequest) -> StreamingResponse:
     logger.info(
         "Stream feedback request: {persona_count} personas, {frame_count} frames",
         persona_count=len(request.personas),
         frame_count=len(request.frames) if request.frames else 1,
     )
-    invalid = [p for p in request.personas if p not in PERSONAS]
-    if invalid:
-        logger.warning("Unknown personas requested: {invalid}", invalid=invalid)
-        raise HTTPException(status_code=400, detail=f"Unknown personas: {invalid}")
-
+    _validate_personas(request.personas)
     frames = _normalize_frames(request)
 
     async def event_generator():

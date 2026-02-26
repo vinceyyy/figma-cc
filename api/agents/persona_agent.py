@@ -10,8 +10,9 @@ from PIL import Image, ImageDraw, ImageFont
 from pydantic_ai import Agent, BinaryContent
 
 from api.config import settings
+from api.models.request import FrameData
 from api.models.response import PersonaFeedback
-from api.personas.definitions import Persona
+from api.personas.definitions import Persona, get_persona
 
 MAX_IMAGE_DIMENSION = 1500
 
@@ -100,7 +101,7 @@ def _add_coordinate_grid(image_bytes: bytes) -> bytes:
 
 def _build_user_prompt(
     persona: Persona,
-    frames: list[dict],
+    frames: list[FrameData],
     image_dimensions: list[tuple[int, int]],
     context: str | None,
 ) -> str:
@@ -110,9 +111,8 @@ def _build_user_prompt(
     if is_flow:
         parts = ["You are analyzing a user flow consisting of multiple screens. Analyze the complete user journey.\n"]
         for idx, frame in enumerate(frames):
-            meta = frame["metadata"]
             img_w, img_h = image_dimensions[idx]
-            parts.append(f'Frame {idx + 1}: "{meta["frame_name"]}" (image size: {img_w}x{img_h} pixels)')
+            parts.append(f'Frame {idx + 1}: "{frame.metadata.frame_name}" (image size: {img_w}x{img_h} pixels)')
         parts.append(
             "\nThe screenshots are attached in order. Focus on:\n"
             "- Transitions between screens (is the flow logical?)\n"
@@ -121,7 +121,7 @@ def _build_user_prompt(
             "- Individual screen issues that affect the flow"
         )
     else:
-        meta = frames[0]["metadata"]
+        meta = frames[0].metadata.model_dump()
         img_w, img_h = image_dimensions[0]
         # Replace dimensions in metadata with actual image dimensions
         meta_copy = {**meta, "image_dimensions": {"width": img_w, "height": img_h}}
@@ -182,7 +182,7 @@ def _build_instructions(persona: Persona, is_flow: bool) -> str:
 
 async def get_persona_feedback(
     persona: Persona,
-    frames: list[dict],
+    frames: list[FrameData],
     context: str | None = None,
 ) -> PersonaFeedback:
     """Run a pydantic-ai agent query for a single persona and return structured feedback."""
@@ -197,7 +197,7 @@ async def get_persona_feedback(
     image_parts: list[BinaryContent] = []
     image_dimensions: list[tuple[int, int]] = []
     for frame in frames:
-        image_bytes = base64.b64decode(frame["image"])
+        image_bytes = base64.b64decode(frame.image)
         image_bytes, dims = _downscale_if_needed(image_bytes)
         gridded_bytes = _add_coordinate_grid(image_bytes)
         image_parts.append(BinaryContent(data=gridded_bytes, media_type="image/jpeg"))
@@ -239,14 +239,11 @@ async def get_persona_feedback(
 
 async def get_all_feedback(
     persona_ids: list[str],
-    frames: list[dict],
+    frames: list[FrameData],
     context: str | None = None,
 ) -> list[PersonaFeedback]:
     """Run feedback for multiple personas in parallel."""
-    from api.personas.definitions import get_persona
-
-    personas = [get_persona(pid) for pid in persona_ids]
-    valid_personas = [p for p in personas if p is not None]
+    valid_personas = [p for pid in persona_ids if (p := get_persona(pid)) is not None]
     logger.info("Running {count} personas in parallel", count=len(valid_personas))
 
     coros = [get_persona_feedback(persona, frames, context) for persona in valid_personas]
@@ -267,14 +264,11 @@ async def get_all_feedback(
 
 async def stream_all_feedback(
     persona_ids: list[str],
-    frames: list[dict],
+    frames: list[FrameData],
     context: str | None = None,
 ) -> AsyncIterator[PersonaFeedback | dict]:
     """Run feedback for multiple personas in parallel, yielding each result as it completes."""
-    from api.personas.definitions import get_persona
-
-    personas = [get_persona(pid) for pid in persona_ids]
-    valid_personas = [p for p in personas if p is not None]
+    valid_personas = [p for pid in persona_ids if (p := get_persona(pid)) is not None]
 
     if not valid_personas:
         return

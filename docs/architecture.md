@@ -10,7 +10,7 @@
 │  │  (code.ts)         │                  │  (ui.html)  │ │
 │  │                    │                  │             │ │
 │  │  • Selection events│                  │  • HTTP/SSE │ │
-│  │  • PNG export      │                  │  • Rendering│ │
+│  │  • JPG export      │                  │  • Rendering│ │
 │  │  • Metadata extract│                  │  • Overlays │ │
 │  └───────────────────┘                  └──────┬──────┘ │
 └─────────────────────────────────────────────────┼───────┘
@@ -125,7 +125,7 @@ Returns `{"status": "ok"}`.
 
 ## Persona System
 
-Each persona is a `Persona` dataclass with `id`, `label`, and `system_prompt`. All personas are defined in `api/personas/definitions.py` in the `PERSONAS` dict.
+Each persona is a `Persona` model with `id`, `label`, and `system_prompt`. Personas are loaded from JSON files in the `personas/` directory.
 
 **Built-in personas:**
 
@@ -139,16 +139,9 @@ Each persona is a `Persona` dataclass with `id`, `label`, and `system_prompt`. A
 
 **Adding a new persona:**
 
-1. Add an entry to the `PERSONAS` dict in `api/personas/definitions.py`:
-   ```python
-   "developer": Persona(
-       id="developer",
-       label="Developer",
-       system_prompt="You are a frontend developer evaluating implementation feasibility...",
-   ),
-   ```
-2. Add a checkbox in `figma-plugin/ui.html` (search for `persona-list`)
-3. The router dynamically reads from `PERSONAS` — no backend wiring needed
+1. Add a `.json` file to the `personas/` directory with `id`, `label`, and `system_prompt` fields
+2. Restart the backend
+3. No code changes needed — the plugin fetches personas dynamically from `GET /api/personas`
 
 ## Plugin Architecture
 
@@ -159,7 +152,7 @@ Runs in Figma's sandbox with access to the Figma API but **no network access**.
 Responsibilities:
 - Listens for `selectionchange` events
 - Sends selection metadata to UI via `figma.ui.postMessage`
-- On `export-selection` message: exports each selected frame as base64 PNG at 2x scale
+- On `export-selection` message: exports each selected frame as base64 JPG at 2x scale
 - Extracts metadata: frame name, dimensions, text content, fill colors, component names
 - Multi-frame selections are sorted by x-position (left to right) to preserve flow order
 
