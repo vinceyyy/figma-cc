@@ -450,7 +450,7 @@
       <input type="text" class="api-url-input" id="apiUrl"
              placeholder="https://your-ngrok-url.ngrok-free.dev"
              style="margin-bottom:12px;">
-      <button class="btn" id="btnConnect">Connect</button>
+      <button type="button" class="btn" id="btnConnect">Connect</button>
       <div id="connectError" style="display:none; margin-top:12px;" class="error-msg"></div>
       <div id="connectLoading" style="display:none; margin-top:12px;">
         <div class="spinner" style="margin:0 auto;"></div>
@@ -468,7 +468,7 @@
     </svg>
     <p style="margin-top:12px; font-size:13px; font-weight:500; color:#333;">No frames selected</p>
     <p style="font-size:11px; color:#999; margin-top:4px;">Select one or more frames in Figma to analyze</p>
-    <button class="link-btn" id="btnChangeBackendEmpty" style="margin-top:16px;">Change Backend</button>
+    <button type="button" class="link-btn" id="btnChangeBackendEmpty" style="margin-top:16px;">Change Backend</button>
   </div>
 
   <!-- Ready state -->
@@ -488,14 +488,14 @@
         <!-- Dynamically populated from backend -->
       </ul>
     </div>
-    <button class="btn" id="btnGetFeedback">Get Feedback</button>
-    <button class="link-btn" id="btnChangeBackend">Change Backend</button>
+    <button type="button" class="btn" id="btnGetFeedback">Get Feedback</button>
+    <button type="button" class="link-btn" id="btnChangeBackend">Change Backend</button>
   </div>
 
   <!-- Results state -->
   <div id="state-results" style="display:none;">
     <div id="feedbackCards"></div>
-    <button class="btn-secondary btn" id="btnNewFeedback">New Analysis</button>
+    <button type="button" class="btn-secondary btn" id="btnNewFeedback">New Analysis</button>
   </div>
 
   <!-- Error state -->
@@ -503,7 +503,7 @@
     <div class="error-state">
       <div class="error-msg" id="errorMsg"></div>
       <p style="color:#999; font-size:11px; margin-top:8px;">Check that your backend server and ngrok tunnel are both running.</p>
-      <button class="btn" id="btnRetry">Retry</button>
+      <button type="button" class="btn" id="btnRetry">Retry</button>
     </div>
   </div>
 
@@ -667,7 +667,7 @@
           <div class="progress-bar-fill"></div>
         </div>
         <div class="progress-cancel">
-          <button class="btn-cancel" id="btnCancelStream">Cancel</button>
+          <button type="button" class="btn-cancel" id="btnCancelStream">Cancel</button>
         </div>
       </div>
     `;
