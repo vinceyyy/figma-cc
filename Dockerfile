@@ -1,19 +1,24 @@
-FROM python:3.13-slim AS base
+FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm
 
+# Install uv from official image
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
-# Install production deps only (no dev group)
+# Copy dependency files first for layer caching
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
 
-# Copy application code
-COPY api/ api/
-COPY personas/ personas/
+# Install production dependencies only
+RUN uv sync --no-dev --frozen
 
-# Re-sync to install the project itself (if needed by imports)
-RUN uv sync --frozen --no-dev
+# Copy application code and personas
+COPY api/ ./api/
+COPY personas/ ./personas/
+
+# Prevent uv from re-syncing on every run
+ENV UV_NO_SYNC=1
+ENV PERSONAS_DIR=./personas
+ENV LOG_LEVEL=INFO
 
 EXPOSE 8000
 
