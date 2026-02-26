@@ -22,7 +22,7 @@
 ### File structure
 
 ```
-figma-cc/
+synthetic-design-feedback/
   personas/                       # Top-level, outside api/
     first_time_user.json
     power_user.json

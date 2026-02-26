@@ -1,4 +1,4 @@
-# Figma AI Feedback Plugin
+# Synthetic Design Feedback
 
 A Figma plugin that sends design screenshots to AI personas for instant, multi-perspective design feedback. Select frames in Figma, pick reviewer personas (e.g., "First-Time User", "Accessibility Advocate"), and get structured feedback with annotated issue overlays streamed back in real time.
 
@@ -24,7 +24,7 @@ A Figma plugin that sends design screenshots to AI personas for instant, multi-p
 ### 1. Clone and install
 
 ```bash
-git clone <repo-url> && cd figma-cc
+git clone <repo-url> && cd synthetic-design-feedback
 uv sync                         # Python dependencies
 cd figma-plugin && npm install   # Plugin dependencies
 ```
@@ -129,7 +129,7 @@ GitHub Actions runs three parallel jobs on every PR and push to `main`:
 ## Project Structure
 
 ```
-figma-cc/
+synthetic-design-feedback/
 ├── api/
 │   ├── main.py                  # FastAPI app, CORS, router mounting
 │   ├── config.py                # pydantic-settings (host, port, model, personas dir)
