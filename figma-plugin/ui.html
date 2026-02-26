@@ -342,8 +342,8 @@
     border-radius: 4px 4px 0 0;
   }
   .persona-tab.active {
-    color: #18a0fb;
-    background: #e8f4fd;
+    color: #fff;
+    background: #18a0fb;
     border-bottom-color: #18a0fb;
     border-radius: 4px 4px 0 0;
   }
@@ -411,6 +411,12 @@
     background: #e2e8f0;
     border-radius: 2px;
     overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .progress-hint {
+    font-size: 10px;
+    color: #bbb;
+    text-align: center;
     margin-bottom: 12px;
   }
   .progress-bar-fill {
@@ -461,7 +467,8 @@
 
   <!-- Empty state (connected but no selection) -->
   <div id="state-empty" style="display:none;" class="empty-state">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" role="img">
+      <title>Frame icon</title>
       <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
       <line x1="3" y1="9" x2="21" y2="9"/>
       <line x1="9" y1="21" x2="9" y2="9"/>
@@ -619,9 +626,8 @@
     }
 
     if (msg.type === 'export-progress') {
-      const text = 'Exporting frame ' + msg.current + ' of ' + msg.total
-        + (msg.frameName ? ' \u2014 "' + msg.frameName + '"' : '') + '...';
-      setProgressPhase(text);
+      const name = msg.frameName ? ` \u2014 "${msg.frameName}"` : '';
+      setProgressPhase(`Exporting frame ${msg.current} of ${msg.total}${name}...`);
     }
 
     if (msg.type === 'export-error') {
@@ -666,6 +672,7 @@
         <div class="progress-bar-track">
           <div class="progress-bar-fill"></div>
         </div>
+        <div class="progress-hint">This may take 1\u20133 minutes</div>
         <div class="progress-cancel">
           <button type="button" class="btn-cancel" id="btnCancelStream">Cancel</button>
         </div>
@@ -849,14 +856,14 @@
               // Create tab + panel
               const panelId = `panel-${allFeedback.length - 1}`;
               const tab = document.createElement('button');
-              tab.className = 'persona-tab' + (allFeedback.length === 1 ? ' active' : '');
+              tab.className = `persona-tab${allFeedback.length === 1 ? ' active' : ''}`;
               tab.dataset.panelId = panelId;
               tab.innerHTML = `${esc(fb.persona_label)} <span class="tab-score">${fb.score}/10</span>`;
               tab.onclick = () => switchTab(tab);
               tabBar.insertBefore(tab, loadingTab);
 
               const panel = document.createElement('div');
-              panel.className = 'tab-panel' + (allFeedback.length === 1 ? ' active' : '');
+              panel.className = `tab-panel${allFeedback.length === 1 ? ' active' : ''}`;
               panel.id = panelId;
               renderSingleFeedbackCard(panel, fb);
               panelsContainer.appendChild(panel);
@@ -1001,7 +1008,7 @@
       </div>
     `).join('');
 
-    let positivesHtml = fb.positives.length > 0
+    const positivesHtml = fb.positives.length > 0
       ? `<div class="positives-section"><div class="positives-heading">What's working well</div>${fb.positives.map(p => `<div class="positive">${esc(p)}</div>`).join('')}</div>`
       : '';
 
