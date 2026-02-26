@@ -285,10 +285,12 @@ api/
                              #   GET /api/personas (list available personas)
 
 personas/
-├── ux_researcher.json       # UX Researcher persona definition
-├── accessibility_expert.json # Accessibility Expert persona definition
-├── visual_designer.json     # Visual Designer persona definition
-└── *.json                   # Add new personas as JSON files here
+├── accessibility_advocate.json  # Accessibility Advocate persona
+├── brand_manager.json           # Brand Manager persona
+├── first_time_user.json         # First-Time User persona
+├── power_user.json              # Power User persona
+├── skeptical_customer.json      # Skeptical Customer persona
+└── *.json                       # Add new personas as JSON files here
 
 figma-plugin/
 ├── manifest.json            # Plugin ID, documentAccess: dynamic-page, allowed ngrok domains
@@ -312,7 +314,7 @@ tests/
 1. **Plugin main thread** (`code.ts`): listens for selection changes, exports selected frames as base64 JPEG at 2x scale, extracts metadata (dimensions, text content, colors, component names)
 2. **Plugin UI thread** (`ui.html`): connects to backend first (`GET /api/personas`), then sends POST to `/api/feedback/stream` with base64 images + metadata, parses SSE events, renders feedback cards with annotation overlays
 3. **Backend router** (`feedback.py`): validates request, normalizes single/multi-frame format, returns `StreamingResponse` with SSE events
-4. **Agent** (`persona_agent.py`): for each persona, decodes base64 images, builds `BinaryContent` for inline vision, runs pydantic-ai agent with `output_type=PersonaFeedback`, returns structured feedback
+4. **Agent** (`persona_agent.py`): for each persona, decodes base64 images, downscales if needed, overlays a coordinate grid for spatial accuracy, builds `BinaryContent` for inline vision, runs pydantic-ai agent with `output_type=PersonaFeedback`, returns structured feedback
 5. **Streaming** (`stream_all_feedback`): runs all persona agents concurrently via `asyncio.create_task`, yields results through an `asyncio.Queue` as each completes
 
 ## Key Constraints
@@ -320,8 +322,9 @@ tests/
 - **Figma sandbox**: only the UI thread (`ui.html`) can make network calls. The main thread (`code.ts`) can only talk to the UI via `postMessage`. All HTTP requests originate from `ui.html`.
 - **Network allowlist**: domains must be in `manifest.json` > `networkAccess.allowedDomains`. Currently allows `*.ngrok-free.app` and `*.ngrok-free.dev`.
 - **Document access**: `documentAccess: "dynamic-page"` in manifest — required for `getMainComponentAsync()`.
-- **pydantic-ai Agent**: uses `output_type=PersonaFeedback` for structured output. Model configurable via `MODEL_NAME` env var (default: `openai-responses:gpt-5-mini`). Uses OpenAI Responses API via pydantic-ai's `OpenAIResponsesModel`.
+- **pydantic-ai Agent**: uses `output_type=PersonaFeedback` for structured output. Model configurable via `MODEL_NAME` env var (default: `openai-responses:gpt-5`). Uses OpenAI Responses API via pydantic-ai's `OpenAIResponsesModel`. Use `gpt-5-mini` for faster/cheaper results at the cost of annotation precision.
 - **Inline vision**: images passed inline as `BinaryContent(data=jpeg_bytes, media_type='image/jpeg')` — no temp files needed.
+- **Coordinate grid overlay**: before sending screenshots to the model, a subtle coordinate grid (tick marks at every 10%, gridlines at 25%/50%/75%) is overlaid on the image. This gives the vision model visual reference points for accurate annotation positioning. The grid is NOT shown in the plugin UI — only the model sees it.
 - **CORS**: `allow_origins=["*"]` — permissive for development. Tighten for production.
 - **Auth**: requires `OPENAI_API_KEY` env var in `.env`.
 
@@ -342,7 +345,7 @@ The `/api/feedback/stream` endpoint uses `StreamingResponse` with `text/event-st
 3. No code changes needed — the plugin fetches personas dynamically from `GET /api/personas`
 
 ### Annotation Coordinates
-Annotations use percentage-based coordinates (`x_pct`, `y_pct`, `width_pct`, `height_pct`) relative to the frame dimensions. The `frame_index` field maps annotations to specific frames in multi-frame flows.
+Annotations use percentage-based coordinates (`x_pct`, `y_pct`, `width_pct`, `height_pct`) relative to the image dimensions. The `frame_index` field maps annotations to specific frames in multi-frame flows. In the UI, annotation boxes are positioned inside `.annotation-image-wrapper` (not the outer `.annotation-container`) so that percentages are relative to the image only, not the image + frame label.
 
 ## Testing
 
