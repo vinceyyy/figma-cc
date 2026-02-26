@@ -37,7 +37,7 @@ def test_load_personas_empty_dir(tmp_path):
 def test_default_personas_loaded():
     """The module-level PERSONAS should have loaded from personas/ directory."""
     assert len(PERSONAS) >= 5
-    expected = {"first_time_user", "power_user", "accessibility_advocate", "brand_manager", "skeptical_customer"}
+    expected = {"first_time_user", "power_user", "accessibility_advocate", "brand_manager", "ux_heuristics_evaluator"}
     assert expected.issubset(set(PERSONAS.keys()))
 
 
