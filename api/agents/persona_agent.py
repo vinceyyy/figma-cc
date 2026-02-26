@@ -284,6 +284,7 @@ async def stream_all_feedback(
     queue: asyncio.Queue[PersonaFeedback | dict] = asyncio.Queue()
 
     async def _run_persona(persona: Persona) -> None:
+        await queue.put({"event": "persona-start", "persona_id": persona.id, "persona_label": persona.label})
         try:
             result = await get_persona_feedback(persona, frames, context)
             await queue.put(result)
@@ -294,8 +295,9 @@ async def stream_all_feedback(
 
     tasks = [asyncio.create_task(_run_persona(p)) for p in valid_personas]
 
+    expected = len(valid_personas) * 2  # start event + result/error per persona
     received = 0
-    while received < len(valid_personas):
+    while received < expected:
         item = await queue.get()
         received += 1
         yield item

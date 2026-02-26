@@ -76,6 +76,9 @@ async def stream_feedback(request: FeedbackRequest):
             if isinstance(item, PersonaFeedback):
                 logger.debug("SSE: persona {pid} complete", pid=item.persona)
                 yield f"data: {item.model_dump_json()}\n\n"
+            elif isinstance(item, dict) and item.get("event") == "persona-start":
+                logger.debug("SSE: persona {pid} starting", pid=item.get("persona_id"))
+                yield f"event: persona-start\ndata: {json.dumps(item)}\n\n"
             elif isinstance(item, dict) and item.get("error"):
                 logger.warning("SSE: persona error for {pid}", pid=item.get("persona"))
                 yield f"event: persona-error\ndata: {json.dumps(item)}\n\n"

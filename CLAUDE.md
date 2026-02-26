@@ -299,7 +299,7 @@ personas/
 ├── brand_manager.json           # Brand Manager persona
 ├── first_time_user.json         # First-Time User persona
 ├── power_user.json              # Power User persona
-├── skeptical_customer.json      # Skeptical Customer persona
+├── ux_heuristics_evaluator.json # UX Heuristics Evaluator persona (Nielsen's heuristics)
 └── *.json                       # Add new personas as JSON files here
 
 figma-plugin/

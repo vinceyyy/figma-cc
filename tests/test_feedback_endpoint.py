@@ -150,3 +150,28 @@ async def test_feedback_stream_endpoint(mock_feedback):
         assert len(data_lines) >= 1
         # Last event should be done
         assert "event: done" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_stream_emits_persona_start_events(mock_feedback):
+    async def mock_stream(*args, **kwargs):
+        yield {"event": "persona-start", "persona_id": "first_time_user", "persona_label": "First-Time User"}
+        yield mock_feedback
+
+    with patch("api.routers.feedback.stream_all_feedback", return_value=mock_stream()):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            resp = await client.post(
+                "/api/feedback/stream",
+                json={
+                    "image": "aGVsbG8=",
+                    "metadata": {
+                        "frame_name": "Test",
+                        "dimensions": {"width": 100, "height": 100},
+                    },
+                    "personas": ["first_time_user"],
+                },
+            )
+
+        assert resp.status_code == 200
+        assert "event: persona-start" in resp.text
+        assert '"persona_id": "first_time_user"' in resp.text or '"persona_id":"first_time_user"' in resp.text
