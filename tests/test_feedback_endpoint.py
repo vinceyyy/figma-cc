@@ -5,6 +5,9 @@ from httpx import ASGITransport, AsyncClient
 
 from api.main import app
 from api.models.response import PersonaFeedback
+from tests import TEST_API_KEY
+
+API_KEY_HEADER = {"X-API-Key": TEST_API_KEY}
 
 
 @pytest.fixture
@@ -22,7 +25,7 @@ def mock_feedback():
 @pytest.mark.asyncio
 async def test_get_personas_endpoint():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        resp = await client.get("/api/personas")
+        resp = await client.get("/api/personas", headers=API_KEY_HEADER)
 
     assert resp.status_code == 200
     data = resp.json()
@@ -54,6 +57,7 @@ async def test_feedback_endpoint(mock_feedback):
                     },
                     "personas": ["first_time_user"],
                 },
+                headers=API_KEY_HEADER,
             )
 
         assert resp.status_code == 200
@@ -80,6 +84,7 @@ async def test_feedback_endpoint_no_personas():
                 },
                 "personas": [],
             },
+            headers=API_KEY_HEADER,
         )
 
     assert resp.status_code == 422  # Validation error: empty personas
@@ -112,6 +117,7 @@ async def test_feedback_endpoint_multi_frame(mock_feedback):
                     ],
                     "personas": ["first_time_user"],
                 },
+                headers=API_KEY_HEADER,
             )
 
         assert resp.status_code == 200
@@ -140,6 +146,7 @@ async def test_feedback_stream_endpoint(mock_feedback):
                     },
                     "personas": ["first_time_user"],
                 },
+                headers=API_KEY_HEADER,
             )
 
         assert resp.status_code == 200
@@ -170,8 +177,41 @@ async def test_stream_emits_persona_start_events(mock_feedback):
                     },
                     "personas": ["first_time_user"],
                 },
+                headers=API_KEY_HEADER,
             )
 
         assert resp.status_code == 200
         assert "event: persona-start" in resp.text
         assert '"persona_id": "first_time_user"' in resp.text or '"persona_id":"first_time_user"' in resp.text
+
+
+# --- API key authentication tests ---
+
+
+@pytest.mark.asyncio
+async def test_request_without_api_key_returns_401():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/api/personas")
+
+    assert resp.status_code == 401
+    assert resp.json() == {"detail": "Invalid or missing API key"}
+
+
+@pytest.mark.asyncio
+async def test_request_with_wrong_api_key_returns_401():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/api/personas", headers={"X-API-Key": "wrong-key"})
+
+    assert resp.status_code == 401
+    assert resp.json() == {"detail": "Invalid or missing API key"}
+
+
+@pytest.mark.asyncio
+async def test_health_endpoint_needs_no_api_key():
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.get("/health")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ok"
+    assert "auth_required" in data

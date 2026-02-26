@@ -6,8 +6,11 @@ from httpx import ASGITransport, AsyncClient
 from api.main import app
 from api.models.request import DesignMetadata, Dimensions, FrameData
 from api.models.response import PersonaFeedback
+from tests import TEST_API_KEY
 
 from .conftest import TINY_PNG
+
+API_KEY_HEADER = {"X-API-Key": TEST_API_KEY}
 
 MOCK_FEEDBACK_DETAILED = PersonaFeedback(
     persona="first_time_user",
@@ -109,6 +112,7 @@ async def test_full_feedback_flow(mock_agent_detailed):
                 "personas": ["first_time_user"],
                 "context": "A test page",
             },
+            headers=API_KEY_HEADER,
         )
 
     assert resp.status_code == 200
@@ -146,6 +150,7 @@ async def test_multi_frame_flow(mock_agent_flow):
                 "personas": ["first_time_user"],
                 "context": "Login to dashboard flow",
             },
+            headers=API_KEY_HEADER,
         )
 
     assert resp.status_code == 200
