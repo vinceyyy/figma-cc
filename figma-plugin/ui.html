@@ -83,16 +83,9 @@
   .feedback-card {
     background: #f8f9fa;
     border-radius: 8px;
-    padding: 12px;
+    padding: 8px;
     margin-bottom: 10px;
   }
-  .feedback-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-  .feedback-header h3 { font-size: 13px; font-weight: 600; }
   .score {
     background: #18a0fb;
     color: #fff;
@@ -124,8 +117,17 @@
   .severity-high { background: #fde8e8; color: #c53030; }
   .severity-medium { background: #fef3cd; color: #856404; }
   .severity-low { background: #d4edda; color: #155724; }
-  .positive { color: #2f855a; font-size: 11px; padding: 2px 0; }
-  .positive::before { content: "\2713 "; }
+  .positives-section {
+    margin-top: 10px;
+  }
+  .positives-heading {
+    font-size: 11px;
+    font-weight: 600;
+    color: #2f855a;
+    margin-bottom: 4px;
+  }
+  .positive { color: #2f855a; font-size: 11px; padding: 2px 0; display: flex; gap: 6px; }
+  .positive::before { content: "\2713"; flex-shrink: 0; }
   .error-state {
     text-align: center;
     padding: 20px;
@@ -400,10 +402,7 @@
     font-size: 11px;
     color: #999;
     margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
+    text-align: center;
   }
   .progress-bar-track {
     width: 100%;
@@ -415,47 +414,14 @@
   }
   .progress-bar-fill {
     height: 100%;
+    width: 30%;
     background: #18a0fb;
     border-radius: 2px;
-    transition: width 0.4s ease;
+    animation: indeterminate 1.4s ease-in-out infinite;
   }
-  .progress-summary {
-    font-size: 12px;
-    color: #555;
-    font-weight: 500;
-    margin-bottom: 12px;
-  }
-  .persona-progress-list {
-    list-style: none;
-    margin-bottom: 16px;
-  }
-  .persona-progress-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 0;
-    font-size: 12px;
-    color: #333;
-    border-bottom: 1px solid #f0f0f0;
-  }
-  .persona-progress-item:last-child { border-bottom: none; }
-  .persona-progress-icon {
-    width: 18px;
-    height: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .persona-progress-icon.pending { color: #ccc; }
-  .persona-progress-icon.analyzing { color: #18a0fb; }
-  .persona-progress-icon.done { color: #38a169; }
-  .persona-progress-icon.failed { color: #c53030; }
-  .persona-progress-score {
-    margin-left: auto;
-    font-size: 11px;
-    font-weight: 600;
-    color: #18a0fb;
+  @keyframes indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(430%); }
   }
   .progress-cancel {
     text-align: center;
@@ -652,12 +618,9 @@
     }
 
     if (msg.type === 'export-progress') {
-      const phaseEl = document.getElementById('progressPhase');
-      if (phaseEl) {
-        phaseEl.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>'
-          + '<span>Exporting frame ' + msg.current + ' of ' + msg.total
-          + (msg.frameName ? ' \u2014 "' + esc(msg.frameName) + '"' : '') + '...</span>';
-      }
+      const text = 'Exporting frame ' + msg.current + ' of ' + msg.total
+        + (msg.frameName ? ' \u2014 "' + msg.frameName + '"' : '') + '...';
+      setProgressPhase(text);
     }
 
     if (msg.type === 'export-error') {
@@ -693,37 +656,15 @@
     const container = document.getElementById('feedbackCards');
     container.innerHTML = '';
 
-    // Look up labels from availablePersonas
-    const personaItems = personaIds.map(id => {
-      const p = availablePersonas.find(ap => ap.id === id);
-      return { id, label: p ? p.label : id, status: 'pending', score: null };
-    });
-
-    // Store for updates
-    window._progressPersonas = personaItems;
-    window._progressCompleted = 0;
-    window._progressTotal = personaItems.length;
+    // Store total for all-fail detection
+    window._progressTotal = personaIds.length;
 
     const html = `
       <div class="progress-container" id="progressContainer">
-        <div class="progress-phase" id="progressPhase">
-          <span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>
-          <span>Preparing...</span>
-        </div>
+        <div class="progress-phase" id="progressPhase">Preparing...</div>
         <div class="progress-bar-track">
-          <div class="progress-bar-fill" id="progressBar" style="width:0%"></div>
+          <div class="progress-bar-fill"></div>
         </div>
-        <div class="progress-summary" id="progressSummary">0 of ${personaItems.length} personas complete</div>
-        <ul class="persona-progress-list" id="personaProgressList">
-          ${personaItems.map(p => `
-            <li class="persona-progress-item" data-persona-id="${esc(p.id)}">
-              <span class="persona-progress-icon pending">&#9679;</span>
-              <span class="persona-progress-name">${esc(p.label)}</span>
-              <span class="persona-progress-status" style="color:#ccc;font-size:11px;">waiting</span>
-              <span class="persona-progress-score"></span>
-            </li>
-          `).join('')}
-        </ul>
         <div class="progress-cancel">
           <button class="btn-cancel" id="btnCancelStream">Cancel</button>
         </div>
@@ -740,48 +681,6 @@
     };
   }
 
-  // Update a single persona's progress status
-  function updatePersonaProgress(personaId, status, score) {
-    const item = document.querySelector(`.persona-progress-item[data-persona-id="${CSS.escape(personaId)}"]`);
-    if (!item) return;
-
-    const iconEl = item.querySelector('.persona-progress-icon');
-    const statusEl = item.querySelector('.persona-progress-status');
-    const scoreEl = item.querySelector('.persona-progress-score');
-
-    // Update icon
-    iconEl.className = 'persona-progress-icon ' + status;
-    if (status === 'analyzing') {
-      iconEl.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>';
-      statusEl.textContent = 'analyzing...';
-      statusEl.style.color = '#18a0fb';
-    } else if (status === 'done') {
-      iconEl.innerHTML = '&#10003;';
-      statusEl.textContent = 'done';
-      statusEl.style.color = '#38a169';
-      if (score !== null && score !== undefined) {
-        scoreEl.textContent = score + '/10';
-        scoreEl.className = 'persona-progress-score';
-      }
-    } else if (status === 'failed') {
-      iconEl.innerHTML = '&#10007;';
-      statusEl.textContent = 'failed';
-      statusEl.style.color = '#c53030';
-    }
-  }
-
-  // Update the progress bar and summary text
-  function updateProgressBar() {
-    const bar = document.getElementById('progressBar');
-    const summary = document.getElementById('progressSummary');
-    if (!bar || !summary) return;
-
-    const completed = window._progressCompleted || 0;
-    const total = window._progressTotal || 1;
-    const pct = Math.round((completed / total) * 100);
-    bar.style.width = pct + '%';
-    summary.textContent = `${completed} of ${total} personas complete`;
-  }
 
   // Send feedback request to API (SSE streaming)
   async function sendFeedbackRequest() {
@@ -820,7 +719,7 @@
 
     try {
       // Update progress phase
-      setProgressPhase('Sending images to backend...');
+      setProgressPhase('Sending to server...');
 
       streamingAbort = new AbortController();
       const resp = await fetch(`${apiUrl}/api/feedback/stream`, {
@@ -839,14 +738,14 @@
       }
 
       // Response started — backend is processing
-      setProgressPhase('Waiting for AI to respond...');
+      setProgressPhase('Request received...');
 
-      // Create results area (tab bar + panels) alongside progress — results appear incrementally
+      // Pre-create results area (hidden until first result arrives)
       const container = document.getElementById('feedbackCards');
       const tabBar = document.createElement('div');
       tabBar.className = 'persona-tabs';
       tabBar.id = 'personaTabs';
-      tabBar.style.display = 'none'; // hidden until first result
+      tabBar.style.display = 'none';
       container.appendChild(tabBar);
 
       const loadingTab = document.createElement('span');
@@ -885,9 +784,8 @@
 
             if (currentEventType === 'persona-start') {
               try {
-                const startData = JSON.parse(jsonStr);
-                updatePersonaProgress(startData.persona_id, 'analyzing');
-                setProgressPhase('AI is analyzing your design...');
+                JSON.parse(jsonStr); // validate
+                setProgressPhase('Analyzing your design...');
               } catch (e) {}
               currentEventType = null;
               continue;
@@ -896,12 +794,9 @@
             if (currentEventType === 'persona-error') {
               try {
                 const errData = JSON.parse(jsonStr);
-                updatePersonaProgress(errData.persona, 'failed');
-                window._progressCompleted = (window._progressCompleted || 0) + 1;
-                updateProgressBar();
                 failedCount++;
 
-                // Add error tab immediately
+                // Add error tab
                 const panelId = `panel-err-${failedCount}`;
                 const tab = document.createElement('button');
                 tab.className = 'persona-tab';
@@ -979,7 +874,10 @@
       if (progressContainer) progressContainer.remove();
       loadingTab.style.display = 'none';
 
-      if (allFeedback.length === 0 && failedCount === 0) {
+      if (allFeedback.length === 0) {
+        if (failedCount > 0) {
+          throw new Error('All personas failed. Please try again.');
+        }
         throw new Error('No feedback received from any persona');
       }
 
@@ -1011,8 +909,7 @@
   function setProgressPhase(text) {
     const phaseEl = document.getElementById('progressPhase');
     if (phaseEl) {
-      phaseEl.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>'
-        + '<span>' + esc(text) + '</span>';
+      phaseEl.textContent = text;
     }
   }
 
@@ -1103,13 +1000,11 @@
       </div>
     `).join('');
 
-    const positivesHtml = fb.positives.map(p => `<div class="positive">${esc(p)}</div>`).join('');
+    let positivesHtml = fb.positives.length > 0
+      ? `<div class="positives-section"><div class="positives-heading">What's working well</div>${fb.positives.map(p => `<div class="positive">${esc(p)}</div>`).join('')}</div>`
+      : '';
 
     card.innerHTML = `
-      <div class="feedback-header">
-        <h3>${esc(fb.persona_label)}</h3>
-        <span class="score">${esc(fb.score)}/10</span>
-      </div>
       ${annotationHtml}
       <div class="impression">"${esc(fb.overall_impression)}"</div>
       ${issuesHtml}
@@ -1375,12 +1270,10 @@
             <br><em style="color:#666">&rarr; ${esc(issue.suggestion)}</em>
           </div>
         `).join('');
-        const positivesHtml = fb.positives.map(p => `<div class="positive">${esc(p)}</div>`).join('');
+        let positivesHtml = fb.positives.length > 0
+          ? `<div class="positives-section"><div class="positives-heading">What's working well</div>${fb.positives.map(p => `<div class="positive">${esc(p)}</div>`).join('')}</div>`
+          : '';
         card.innerHTML = `
-          <div class="feedback-header">
-            <h3>${esc(fb.persona_label)}</h3>
-            <span class="score">${esc(fb.score)}/10</span>
-          </div>
           <div class="impression">"${esc(fb.overall_impression)}"</div>
           ${issuesHtml}
           ${positivesHtml}
