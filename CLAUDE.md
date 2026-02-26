@@ -1,4 +1,4 @@
-# Figma AI Feedback Plugin
+# Synthetic Design Feedback
 
 ## User Persona
 
@@ -201,7 +201,7 @@ Tell them the full absolute path to `figma-plugin/manifest.json` so they can fin
 
 > "Great! Now let's use the plugin:
 >
-> 1. In Figma, right-click on the canvas → **Plugins** → **Development** → **figma-cc**
+> 1. In Figma, right-click on the canvas → **Plugins** → **Development** → **Synthetic Design Feedback**
 > 2. The plugin panel will open. Paste this URL into the **Backend URL** field:
 >    `<the ngrok URL from step 8>` and click **Connect**
 > 3. Once connected, the available personas will load. Select one or more frames in your design,

@@ -1,5 +1,5 @@
 [project]
-name = "figma-cc"
+name = "synthetic-design-feedback"
 version = "0.1.0"
 description = "Figma plugin + FastAPI backend for AI-powered design feedback from synthetic personas"
 requires-python = ">=3.13"
