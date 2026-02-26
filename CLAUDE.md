@@ -262,6 +262,16 @@ cd figma-plugin && npm run watch                         # rebuild on save
 uv run pytest tests/ -v                                  # all tests
 uv run pytest tests/test_agent.py -v                     # single file
 
+# Linting & Type Checking
+uv run ruff check api/ tests/                            # lint Python
+uv run ruff format api/ tests/                           # format Python
+uv run ty check api/                                     # type check Python
+cd figma-plugin && npx biome check .                     # lint plugin (TS/HTML/CSS)
+cd figma-plugin && npx biome check --write .             # lint + auto-fix plugin
+
+# Pre-commit (runs automatically on git commit)
+uv run pre-commit run --all-files                        # run all hooks manually
+
 # Tunnel
 ngrok http 8000                                          # expose backend to Figma
 ```
@@ -296,8 +306,15 @@ figma-plugin/
 ├── manifest.json            # Plugin ID, documentAccess: dynamic-page, allowed ngrok domains
 ├── code.ts → code.js        # Main thread — selection listener, JPEG export, metadata extraction
 ├── ui.html                  # UI thread — connect flow, persona picker, SSE client, annotation overlay renderer
+├── biome.json               # Biome v2 config — TS/HTML/CSS linting + formatting
 ├── package.json             # Build scripts: tsc build/watch
 └── tsconfig.json            # TypeScript strict config targeting ES6
+
+.github/
+└── workflows/
+    └── ci.yml               # GitHub Actions: lint (Python), test (coverage), lint (plugin)
+
+.pre-commit-config.yaml      # Pre-commit hooks: ruff, ty, biome, standard checks
 
 tests/
 ├── test_models.py           # Pydantic model validation and edge cases
@@ -327,6 +344,7 @@ tests/
 - **Coordinate grid overlay**: before sending screenshots to the model, a subtle coordinate grid (tick marks at every 10%, gridlines at 25%/50%/75%) is overlaid on the image. This gives the vision model visual reference points for accurate annotation positioning. The grid is NOT shown in the plugin UI — only the model sees it.
 - **CORS**: `allow_origins=["*"]` — permissive for development. Tighten for production.
 - **Auth**: requires `OPENAI_API_KEY` env var in `.env`.
+- **Code quality**: ruff (lint + format, 120 char line length), ty (type checking), Biome v2 (TS/HTML/CSS). Pre-commit runs all checks on every commit. GitHub Actions CI runs the same checks on every PR and push to main.
 
 ## Patterns
 
@@ -349,7 +367,7 @@ Annotations use percentage-based coordinates (`x_pct`, `y_pct`, `width_pct`, `he
 
 ## Testing
 
-Tests use `pytest` with `pytest-asyncio` (auto mode). pydantic-ai agent calls are mocked — tests never hit the real API.
+Tests use `pytest` with `pytest-asyncio` (auto mode) and `pytest-cov` for coverage reporting. pydantic-ai agent calls are mocked — tests never hit the real API.
 
 - `test_models.py`: validates Pydantic schemas accept/reject correctly
 - `test_personas.py`: persona definitions exist and `get_persona()` works
@@ -358,3 +376,5 @@ Tests use `pytest` with `pytest-asyncio` (auto mode). pydantic-ai agent calls ar
 - `test_integration.py`: end-to-end with mocked agent, tests both batch and streaming endpoints
 
 Run all: `uv run pytest tests/ -v`
+
+Coverage reports are generated automatically (configured in `pyproject.toml` addopts): terminal output with missing lines + `coverage.xml` for CI artifact upload.

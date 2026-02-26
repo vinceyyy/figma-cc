@@ -103,12 +103,28 @@ uv run uvicorn api.main:app --reload
 # Watch plugin for TypeScript changes
 cd figma-plugin && npm run watch
 
-# Run tests
+# Run tests (with coverage)
 uv run pytest tests/ -v
 
 # Build plugin (one-off)
 cd figma-plugin && npm run build
+
+# Code quality checks
+uv run ruff check api/ tests/               # lint Python
+uv run ruff format api/ tests/              # format Python
+uv run ty check api/                        # type check Python
+cd figma-plugin && npx biome check .        # lint plugin (TS/HTML/CSS)
+
+# Pre-commit hooks (runs automatically on git commit)
+uv run pre-commit run --all-files           # run all hooks manually
 ```
+
+### CI
+
+GitHub Actions runs three parallel jobs on every PR and push to `main`:
+- **Lint (Python)** — ruff check, ruff format, ty type check
+- **Test** — pytest with coverage report
+- **Lint (Plugin)** — Biome check, TypeScript check, code.js freshness
 
 ## Project Structure
 
@@ -132,9 +148,12 @@ figma-cc/
 │   ├── manifest.json            # Plugin config, allowed network domains
 │   ├── code.ts                  # Main thread: selection, JPEG export, metadata extraction
 │   ├── ui.html                  # UI thread: connect flow, persona picker, SSE, annotations
-│   ├── package.json             # TypeScript build tooling
+│   ├── biome.json               # Biome v2 linting/formatting config
+│   ├── package.json             # Build scripts + Biome dependency
 │   └── tsconfig.json            # TypeScript config
 ├── tests/                       # pytest + pytest-asyncio (pydantic-ai mocked)
-├── pyproject.toml               # Python project config (uv)
+├── .github/workflows/ci.yml    # GitHub Actions CI (lint, test, plugin checks)
+├── .pre-commit-config.yaml      # Pre-commit hooks (ruff, ty, biome, standard)
+├── pyproject.toml               # Python config (deps, ruff, ty, pytest-cov)
 └── CLAUDE.md                    # AI agent instructions
 ```
