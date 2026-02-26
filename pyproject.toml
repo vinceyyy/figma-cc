@@ -9,6 +9,7 @@ dependencies = [
     "pillow>=12.1.1",
     "pydantic-settings>=2.13.1",
     "uvicorn[standard]>=0.41.0",
+    "loguru>=0.7.3",
 ]
 
 [dependency-groups]
