@@ -28,7 +28,7 @@ def _downscale_if_needed(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION)
     if max(w, h) > max_dim:
         scale = max_dim / max(w, h)
         new_size = (int(w * scale), int(h * scale))
-        img = img.resize(new_size, Image.LANCZOS)  # type: ignore[reportAttributeAccessIssue]
+        img = img.resize(new_size, Image.LANCZOS)  # ty: ignore[unresolved-attribute]
         logger.info("Downscaled image from {ow}x{oh} to {nw}x{nh}", ow=w, oh=h, nw=new_size[0], nh=new_size[1])
     if img.mode in ("RGBA", "LA", "P"):
         img = img.convert("RGB")
@@ -215,14 +215,15 @@ async def get_persona_feedback(
     )
 
     duration_ms = (time.perf_counter() - t0) * 1000
+    output: PersonaFeedback = result.output  # type: ignore[assignment]  # pydantic-ai generic not inferred by ty
     logger.info(
         "Completed query for persona={persona_id}, score={score}, duration_ms={duration_ms:.0f}",
         persona_id=persona.id,
-        score=result.output.score,
+        score=output.score,
         duration_ms=duration_ms,
     )
-    if result.output.annotations:
-        for ann in result.output.annotations:
+    if output.annotations:
+        for ann in output.annotations:
             logger.debug(
                 "Annotation: frame={fi} issue={ii} label={label} x={x:.1f}% y={y:.1f}% w={w:.1f}% h={h:.1f}%",
                 fi=ann.frame_index,
@@ -233,7 +234,7 @@ async def get_persona_feedback(
                 w=ann.width_pct,
                 h=ann.height_pct,
             )
-    return result.output
+    return output
 
 
 async def get_all_feedback(
