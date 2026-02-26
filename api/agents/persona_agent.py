@@ -4,6 +4,7 @@ import io
 import json
 import time
 from collections.abc import AsyncIterator
+from typing import Any
 
 from loguru import logger
 from PIL import Image, ImageDraw, ImageFont
@@ -50,12 +51,9 @@ def _add_coordinate_grid(image_bytes: bytes) -> bytes:
     draw = ImageDraw.Draw(overlay)
     w, h = img.size
 
-    # Font for labels
+    # Font for labels — grid is only seen by the AI model, so default font suffices
     font_size = max(11, min(w, h) // 50)
-    try:
-        font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", size=font_size)
-    except OSError:
-        font = ImageFont.load_default()
+    font = ImageFont.load_default(size=font_size)
 
     # Subtle full gridlines at 25% intervals
     grid_color = (128, 128, 128, 50)
@@ -121,12 +119,18 @@ def _build_user_prompt(
             "- Individual screen issues that affect the flow"
         )
     else:
-        meta = frames[0].metadata.model_dump()
         img_w, img_h = image_dimensions[0]
-        # Replace dimensions in metadata with actual image dimensions
-        meta_copy = {**meta, "image_dimensions": {"width": img_w, "height": img_h}}
-        meta_copy.pop("dimensions", None)
-        metadata_str = json.dumps(meta_copy, indent=2)
+        meta = frames[0].metadata
+        metadata_str = json.dumps(
+            {
+                "frame_name": meta.frame_name,
+                "image_dimensions": {"width": img_w, "height": img_h},
+                "text_content": meta.text_content,
+                "colors": meta.colors,
+                "component_names": meta.component_names,
+            },
+            indent=2,
+        )
         parts = [
             "Analyze the attached design screenshot.",
             f"\nDesign metadata:\n{metadata_str}",
@@ -266,7 +270,7 @@ async def stream_all_feedback(
     persona_ids: list[str],
     frames: list[FrameData],
     context: str | None = None,
-) -> AsyncIterator[PersonaFeedback | dict]:
+) -> AsyncIterator[PersonaFeedback | dict[str, Any]]:
     """Run feedback for multiple personas in parallel, yielding each result as it completes."""
     valid_personas = [p for pid in persona_ids if (p := get_persona(pid)) is not None]
 
@@ -275,9 +279,9 @@ async def stream_all_feedback(
 
     logger.debug("Starting streaming for {count} personas", count=len(valid_personas))
 
-    _KEEPALIVE: dict = {"keepalive": True}
+    _KEEPALIVE = object()
 
-    queue: asyncio.Queue[PersonaFeedback | dict] = asyncio.Queue()
+    queue: asyncio.Queue[PersonaFeedback | dict[str, Any] | object] = asyncio.Queue()
 
     async def _keepalive() -> None:
         """Put keepalive markers on the queue every 15 seconds to prevent ALB idle timeout."""
@@ -301,14 +305,15 @@ async def stream_all_feedback(
     keepalive_task = asyncio.create_task(_keepalive())
     tasks = [asyncio.create_task(_run_persona(p)) for p in valid_personas]
 
-    expected = len(valid_personas) * 2  # start event + result/error per persona
-    received = 0
-    while received < expected:
+    completed = 0
+    while completed < len(valid_personas):
         item = await queue.get()
         if item is _KEEPALIVE:
-            yield item
+            yield {"keepalive": True}
             continue
-        received += 1
+        # Count only result/error events toward completion (not persona-start events)
+        if isinstance(item, PersonaFeedback) or (isinstance(item, dict) and "error" in item):
+            completed += 1
         yield item
 
     keepalive_task.cancel()

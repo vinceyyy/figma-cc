@@ -7,7 +7,7 @@ from loguru import logger
 from api.agents.persona_agent import get_all_feedback, stream_all_feedback
 from api.models.request import FeedbackRequest, FrameData
 from api.models.response import FeedbackResponse, PersonaFeedback
-from api.personas.definitions import PERSONAS, list_personas
+from api.personas.definitions import get_persona, list_personas
 
 router = APIRouter()
 
@@ -20,7 +20,7 @@ async def get_personas() -> list[dict[str, str]]:
 
 def _validate_personas(persona_ids: list[str]) -> None:
     """Raise HTTPException if any persona IDs are unknown."""
-    invalid = [p for p in persona_ids if p not in PERSONAS]
+    invalid = [p for p in persona_ids if get_persona(p) is None]
     if invalid:
         logger.warning("Unknown personas requested: {invalid}", invalid=invalid)
         raise HTTPException(status_code=400, detail=f"Unknown personas: {invalid}")
@@ -73,17 +73,18 @@ async def stream_feedback(request: FeedbackRequest) -> StreamingResponse:
             frames=frames,
             context=request.context,
         ):
-            if isinstance(item, dict) and item.get("keepalive"):
-                yield ": keepalive\n\n"
-            elif isinstance(item, PersonaFeedback):
-                logger.debug("SSE: persona {pid} complete", pid=item.persona)
-                yield f"data: {item.model_dump_json()}\n\n"
-            elif isinstance(item, dict) and item.get("event") == "persona-start":
-                logger.debug("SSE: persona {pid} starting", pid=item.get("persona_id"))
-                yield f"event: persona-start\ndata: {json.dumps(item)}\n\n"
-            elif isinstance(item, dict) and item.get("error"):
-                logger.warning("SSE: persona error for {pid}", pid=item.get("persona"))
-                yield f"event: persona-error\ndata: {json.dumps(item)}\n\n"
+            match item:
+                case {"keepalive": True}:
+                    yield ": keepalive\n\n"
+                case PersonaFeedback() as feedback:
+                    logger.debug("SSE: persona {pid} complete", pid=feedback.persona)
+                    yield f"data: {feedback.model_dump_json()}\n\n"
+                case {"event": "persona-start", "persona_id": pid}:
+                    logger.debug("SSE: persona {pid} starting", pid=pid)
+                    yield f"event: persona-start\ndata: {json.dumps(item)}\n\n"
+                case {"error": True, "persona": pid}:
+                    logger.warning("SSE: persona error for {pid}", pid=pid)
+                    yield f"event: persona-error\ndata: {json.dumps(item)}\n\n"
         logger.debug("SSE: done event sent")
         yield "event: done\ndata: {}\n\n"
 

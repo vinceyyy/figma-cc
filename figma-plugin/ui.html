@@ -700,62 +700,59 @@
     const msg = event.data.pluginMessage;
     if (!msg) return;
 
-    if (msg.type === 'saved-backend-url') {
-      document.getElementById('apiUrl').value = msg.url;
-      savedUrl = msg.url;
-      tryAutoConnect();
-    }
-
-    if (msg.type === 'saved-api-key') {
-      document.getElementById('apiKey').value = msg.key;
-      savedApiKey = msg.key;
-      tryAutoConnect();
-    }
-
-    if (msg.type === 'selection-cleared') {
-      currentMetadata = null;
-      currentImage = null;
-      currentFrames = null;
-      if (backendUrl) showState('state-empty');
-    }
-
-    if (msg.type === 'selection-info') {
-      currentMetadata = msg.metadata;
-      const info = document.getElementById('selectionInfo');
-      info.textContent = `"${msg.metadata.frameName}" (${msg.metadata.dimensions.width} x ${msg.metadata.dimensions.height})`;
-      if (backendUrl) showState('state-ready');
-    }
-
-    if (msg.type === 'multi-selection-info') {
-      currentMetadata = msg.frames; // array of {frameName, dimensions}
-      currentFrames = null;
-      currentImage = null;
-      const info = document.getElementById('selectionInfo');
-      const names = msg.frames.map(f => `"${f.frameName}"`).join(' \u2192 ');
-      info.textContent = `Flow: ${names} (${msg.frames.length} frames)`;
-      if (backendUrl) showState('state-ready');
-    }
-
-    if (msg.type === 'export-result') {
-      currentImage = msg.image;
-      currentFrames = null;
-      sendFeedbackRequest();
-    }
-
-    if (msg.type === 'export-result-multi') {
-      currentFrames = msg.frames;
-      currentImage = null;
-      sendFeedbackRequest();
-    }
-
-    if (msg.type === 'export-progress') {
-      const name = msg.frameName ? ` \u2014 "${msg.frameName}"` : '';
-      setProgressPhase(`Exporting frame ${msg.current} of ${msg.total}${name}...`);
-    }
-
-    if (msg.type === 'export-error') {
-      showState('state-error');
-      document.getElementById('errorMsg').textContent = `Export failed: ${msg.error}`;
+    switch (msg.type) {
+      case 'saved-backend-url':
+        document.getElementById('apiUrl').value = msg.url;
+        savedUrl = msg.url;
+        tryAutoConnect();
+        break;
+      case 'saved-api-key':
+        document.getElementById('apiKey').value = msg.key;
+        savedApiKey = msg.key;
+        tryAutoConnect();
+        break;
+      case 'selection-cleared':
+        currentMetadata = null;
+        currentImage = null;
+        currentFrames = null;
+        if (backendUrl) showState('state-empty');
+        break;
+      case 'selection-info': {
+        currentMetadata = msg.metadata;
+        const info = document.getElementById('selectionInfo');
+        info.textContent = `"${msg.metadata.frameName}" (${msg.metadata.dimensions.width} x ${msg.metadata.dimensions.height})`;
+        if (backendUrl) showState('state-ready');
+        break;
+      }
+      case 'multi-selection-info': {
+        currentMetadata = msg.frames; // array of {frameName, dimensions}
+        currentFrames = null;
+        currentImage = null;
+        const info = document.getElementById('selectionInfo');
+        const names = msg.frames.map(f => `"${f.frameName}"`).join(' \u2192 ');
+        info.textContent = `Flow: ${names} (${msg.frames.length} frames)`;
+        if (backendUrl) showState('state-ready');
+        break;
+      }
+      case 'export-result':
+        currentImage = msg.image;
+        currentFrames = null;
+        sendFeedbackRequest();
+        break;
+      case 'export-result-multi':
+        currentFrames = msg.frames;
+        currentImage = null;
+        sendFeedbackRequest();
+        break;
+      case 'export-progress': {
+        const name = msg.frameName ? ` \u2014 "${msg.frameName}"` : '';
+        setProgressPhase(`Exporting frame ${msg.current} of ${msg.total}${name}...`);
+        break;
+      }
+      case 'export-error':
+        showState('state-error');
+        document.getElementById('errorMsg').textContent = `Export failed: ${msg.error}`;
+        break;
     }
   };
 
@@ -773,7 +770,7 @@
       return;
     }
     // Build progress UI immediately
-    buildProgressUI(personas);
+    buildProgressUI();
     showState('state-results');
     // Hide the "New Analysis" button during progress (cancel is inside progress container)
     document.getElementById('btnNewFeedback').style.display = 'none';
@@ -782,7 +779,7 @@
   };
 
   // Build the progress indicator UI
-  function buildProgressUI(_personaIds) {
+  function buildProgressUI() {
     const container = document.getElementById('feedbackCards');
     container.innerHTML = '';
 
@@ -1052,32 +1049,31 @@
     return div.innerHTML;
   }
 
-  // Render a single feedback card into the container
-  function renderSingleFeedbackCard(container, fb) {
-    const card = document.createElement('div');
-    card.className = 'feedback-card';
+  // --- Shared HTML helpers ---
 
-    // Determine image sources for annotation overlay
-    const images = currentFrames
+  function getCurrentImages() {
+    return currentFrames
       ? currentFrames.map(f => f.image)
       : currentImage ? [currentImage] : [];
-    const frameNames = currentFrames
+  }
+
+  function getCurrentFrameNames() {
+    return currentFrames
       ? currentFrames.map(f => f.metadata.frameName)
       : currentMetadata?.frameName ? [currentMetadata.frameName] : [];
+  }
 
-    let annotationHtml = '';
-    if (images.length > 0 && fb.annotations && fb.annotations.length > 0) {
-      const isFlow = images.length > 1;
-
-      const framesHtml = images.map((img, frameIdx) => {
-        // Get annotations for this frame
-        const frameAnns = fb.annotations.filter(a => (a.frame_index || 0) === frameIdx);
+  function buildFrameHtml(images, frameNames, annotations, issues) {
+    const framesHtml = images.map((img, frameIdx) => {
+      let boxesHtml = '';
+      if (annotations && annotations.length > 0) {
+        const frameAnns = annotations.filter(a => (a.frame_index || 0) === frameIdx);
         const sorted = frameAnns.map((ann, i) => ({ ann, i }));
         sorted.sort((a, b) => (b.ann.width_pct * b.ann.height_pct) - (a.ann.width_pct * a.ann.height_pct));
 
-        const boxesHtml = sorted.map((entry, renderIdx) => {
+        boxesHtml = sorted.map((entry, renderIdx) => {
           const { ann } = entry;
-          const issue = fb.issues[ann.issue_index];
+          const issue = issues ? issues[ann.issue_index] : null;
           const severity = issue ? issue.severity : 'medium';
           const area = issue ? esc(issue.area) : esc(ann.label);
           const desc = issue ? esc(issue.description) : '';
@@ -1091,39 +1087,26 @@
                     <span class="ann-label">${num}</span>
                   </div>`;
         }).join('');
+      }
 
-        const label = frameNames[frameIdx]
-          ? `<span class="frame-label">${frameIdx + 1}. ${esc(frameNames[frameIdx])}</span>`
-          : `<span class="frame-label">${frameIdx + 1}.</span>`;
+      const label = frameNames[frameIdx]
+        ? `<span class="frame-label">${frameIdx + 1}. ${esc(frameNames[frameIdx])}</span>`
+        : `<span class="frame-label">${frameIdx + 1}.</span>`;
 
-        return `<div class="annotation-container">
-                  ${label}
-                  <div class="annotation-image-wrapper">
-                    <img src="data:image/jpeg;base64,${img}" alt="Frame ${frameIdx + 1}">
-                    ${boxesHtml}
-                  </div>
-                </div>`;
-      }).join('');
+      return `<div class="annotation-container">
+                ${label}
+                <div class="annotation-image-wrapper">
+                  <img src="data:image/jpeg;base64,${img}" alt="Frame ${frameIdx + 1}">
+                  ${boxesHtml}
+                </div>
+              </div>`;
+    }).join('');
 
-      annotationHtml = isFlow ? `<div class="flow-strip">${framesHtml}</div>` : framesHtml;
-    } else if (images.length > 0) {
-      // No annotations but we have images — still show them
-      const isFlow = images.length > 1;
-      const framesHtml = images.map((img, frameIdx) => {
-        const label = frameNames[frameIdx]
-          ? `<span class="frame-label">${frameIdx + 1}. ${esc(frameNames[frameIdx])}</span>`
-          : `<span class="frame-label">${frameIdx + 1}.</span>`;
-        return `<div class="annotation-container">
-                  ${label}
-                  <div class="annotation-image-wrapper">
-                    <img src="data:image/jpeg;base64,${img}" alt="Frame ${frameIdx + 1}">
-                  </div>
-                </div>`;
-      }).join('');
-      annotationHtml = isFlow ? `<div class="flow-strip">${framesHtml}</div>` : framesHtml;
-    }
+    return images.length > 1 ? `<div class="flow-strip">${framesHtml}</div>` : framesHtml;
+  }
 
-    const issuesHtml = fb.issues.map((issue, idx) => `
+  function buildIssuesHtml(issues) {
+    return issues.map((issue, idx) => `
       <div class="issue" data-issue-index="${idx}">
         <span style="font-size:10px;font-weight:700;color:#18a0fb;margin-right:3px;">${idx + 1}</span>
         <span class="issue-severity severity-${esc(issue.severity)}">${esc(issue.severity)}</span>
@@ -1131,38 +1114,29 @@
         <br><em style="color:#666">&rarr; ${esc(issue.suggestion)}</em>
       </div>
     `).join('');
+  }
 
-    const positivesHtml = fb.positives.length > 0
-      ? `<div class="positives-section"><div class="positives-heading">What's working well</div>${fb.positives.map(p => `<div class="positive">${esc(p)}</div>`).join('')}</div>`
-      : '';
+  function buildPositivesHtml(positives) {
+    if (positives.length === 0) return '';
+    return `<div class="positives-section"><div class="positives-heading">What's working well</div>${positives.map(p => `<div class="positive">${esc(p)}</div>`).join('')}</div>`;
+  }
 
-    card.innerHTML = `
-      ${annotationHtml}
-      <div class="impression">"${esc(fb.overall_impression)}"</div>
-      ${issuesHtml}
-      ${positivesHtml}
-    `;
-
-    // Wire up hover interactions
+  // Wire hover/click interactions between issues and annotation boxes
+  function wireIssueAnnotationInteractions(card, annotationScope) {
     card.querySelectorAll('.issue[data-issue-index]').forEach(issueEl => {
       const idx = issueEl.dataset.issueIndex;
       issueEl.addEventListener('mouseenter', () => {
-        card.querySelectorAll(`.annotation-box[data-issue-index="${idx}"]`)
+        annotationScope.querySelectorAll(`.annotation-box[data-issue-index="${idx}"]`)
             .forEach(b => { b.classList.add('highlight'); });
       });
       issueEl.addEventListener('mouseleave', () => {
-        card.querySelectorAll('.annotation-box.highlight')
+        annotationScope.querySelectorAll('.annotation-box.highlight')
             .forEach(b => { b.classList.remove('highlight'); });
       });
       issueEl.addEventListener('click', () => {
-        // In 2-col mode, look in the shared images column; in 1-col mode, look in the card
-        const searchScope = twoColMode
-          ? document.querySelector('.images-column') || card
-          : card;
-        const boxes = searchScope.querySelectorAll(`.annotation-box[data-issue-index="${idx}"]`);
+        const boxes = annotationScope.querySelectorAll(`.annotation-box[data-issue-index="${idx}"]`);
         if (boxes.length > 0) {
           const target = boxes[0];
-          // If inside a flow strip, scroll the strip horizontally to show the right frame
           const strip = target.closest('.flow-strip');
           if (strip) {
             const annContainer = target.closest('.annotation-container');
@@ -1170,9 +1144,7 @@
               strip.scrollTo({ left: annContainer.offsetLeft - 8, behavior: 'smooth' });
             }
           }
-          // Scroll the annotation into view
           target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          // Flash highlight
           target.classList.add('flash');
           target.addEventListener('animationend', () => {
             target.classList.remove('flash');
@@ -1181,7 +1153,7 @@
       });
     });
 
-    card.querySelectorAll('.annotation-box[data-issue-index]').forEach(boxEl => {
+    annotationScope.querySelectorAll('.annotation-box[data-issue-index]').forEach(boxEl => {
       const idx = boxEl.dataset.issueIndex;
       boxEl.addEventListener('mouseenter', () => {
         card.querySelectorAll(`.issue[data-issue-index="${idx}"]`)
@@ -1192,7 +1164,30 @@
             .forEach(i => { i.classList.remove('highlight'); });
       });
     });
+  }
 
+  // Render a single feedback card into the container (with images and annotations)
+  function renderSingleFeedbackCard(container, fb) {
+    const card = document.createElement('div');
+    card.className = 'feedback-card';
+
+    const images = getCurrentImages();
+    const frameNames = getCurrentFrameNames();
+    const annotations = fb.annotations && fb.annotations.length > 0 ? fb.annotations : null;
+    const annotationHtml = images.length > 0 ? buildFrameHtml(images, frameNames, annotations, fb.issues) : '';
+
+    card.innerHTML = `
+      ${annotationHtml}
+      <div class="impression">"${esc(fb.overall_impression)}"</div>
+      ${buildIssuesHtml(fb.issues)}
+      ${buildPositivesHtml(fb.positives)}
+    `;
+
+    // Wire hover interactions — in 2-col mode, annotations are in the shared images column
+    const annotationScope = twoColMode
+      ? document.querySelector('.images-column') || card
+      : card;
+    wireIssueAnnotationInteractions(card, annotationScope);
     wireAnnotationTooltips(card);
 
     container.appendChild(card);
@@ -1286,7 +1281,33 @@
     });
   }
 
-  // Render feedback cards
+  // Build tabbed UI with tab bar and panels for a feedback list
+  function buildTabbedFeedback(container, feedbackList, renderCard) {
+    const tabBar = document.createElement('div');
+    tabBar.className = 'persona-tabs';
+    container.appendChild(tabBar);
+
+    const panelsContainer = document.createElement('div');
+    container.appendChild(panelsContainer);
+
+    feedbackList.forEach((fb, idx) => {
+      const panelId = `panel-${idx}`;
+      const tab = document.createElement('button');
+      tab.className = `persona-tab${idx === 0 ? ' active' : ''}`;
+      tab.dataset.panelId = panelId;
+      tab.innerHTML = `${esc(fb.persona_label)} <span class="tab-score">${fb.score}/10</span>`;
+      tab.onclick = () => switchTab(tab);
+      tabBar.appendChild(tab);
+
+      const panel = document.createElement('div');
+      panel.className = `tab-panel${idx === 0 ? ' active' : ''}`;
+      panel.id = panelId;
+      renderCard(panel, fb);
+      panelsContainer.appendChild(panel);
+    });
+  }
+
+  // Render feedback cards (called on layout toggle to re-render from allFeedbackStore)
   function renderFeedback(feedbackList) {
     const container = document.getElementById('feedbackCards');
     container.innerHTML = '';
@@ -1303,100 +1324,24 @@
       feedbackCol.className = 'feedback-column';
 
       // Build shared images (no annotations — added per active tab)
-      const images = currentFrames
-        ? currentFrames.map(f => f.image)
-        : currentImage ? [currentImage] : [];
-      const frameNames = currentFrames
-        ? currentFrames.map(f => f.metadata.frameName)
-        : currentMetadata?.frameName ? [currentMetadata.frameName] : [];
-      const isFlow = images.length > 1;
-
-      const framesHtml = images.map((img, frameIdx) => {
-        const label = frameNames[frameIdx]
-          ? `<span class="frame-label">${frameIdx + 1}. ${esc(frameNames[frameIdx])}</span>`
-          : `<span class="frame-label">${frameIdx + 1}.</span>`;
-        return `<div class="annotation-container">
-                  ${label}
-                  <div class="annotation-image-wrapper">
-                    <img src="data:image/jpeg;base64,${img}" alt="Frame ${frameIdx + 1}">
-                  </div>
-                </div>`;
-      }).join('');
-
-      imagesCol.innerHTML = isFlow ? `<div class="flow-strip">${framesHtml}</div>` : framesHtml;
+      const images = getCurrentImages();
+      const frameNames = getCurrentFrameNames();
+      imagesCol.innerHTML = buildFrameHtml(images, frameNames, null, null);
 
       // Overlay the first persona's annotations
       updateImageAnnotations(feedbackList[0], imagesCol);
 
-      // Build tabs in right column
-      const tabBar = document.createElement('div');
-      tabBar.className = 'persona-tabs';
-      feedbackCol.appendChild(tabBar);
-
-      const panelsContainer = document.createElement('div');
-      feedbackCol.appendChild(panelsContainer);
-
-      feedbackList.forEach((fb, idx) => {
-        const panelId = `panel-${idx}`;
-        const tab = document.createElement('button');
-        tab.className = `persona-tab${idx === 0 ? ' active' : ''}`;
-        tab.dataset.panelId = panelId;
-        tab.innerHTML = `${esc(fb.persona_label)} <span class="tab-score">${fb.score}/10</span>`;
-        tab.onclick = () => switchTab(tab);
-        tabBar.appendChild(tab);
-
-        const panel = document.createElement('div');
-        panel.className = `tab-panel${idx === 0 ? ' active' : ''}`;
-        panel.id = panelId;
-        // Render card without images (they're in the shared panel)
+      // Build tabs in right column — cards without images (they're in the shared panel)
+      buildTabbedFeedback(feedbackCol, feedbackList, (panel, fb) => {
         const card = document.createElement('div');
         card.className = 'feedback-card';
-        const issuesHtml = fb.issues.map((issue, i) => `
-          <div class="issue" data-issue-index="${i}">
-            <span style="font-size:10px;font-weight:700;color:#18a0fb;margin-right:3px;">${i + 1}</span>
-            <span class="issue-severity severity-${esc(issue.severity)}">${esc(issue.severity)}</span>
-            <strong>${esc(issue.area)}:</strong> ${esc(issue.description)}
-            <br><em style="color:#666">&rarr; ${esc(issue.suggestion)}</em>
-          </div>
-        `).join('');
-        const positivesHtml = fb.positives.length > 0
-          ? `<div class="positives-section"><div class="positives-heading">What's working well</div>${fb.positives.map(p => `<div class="positive">${esc(p)}</div>`).join('')}</div>`
-          : '';
         card.innerHTML = `
           <div class="impression">"${esc(fb.overall_impression)}"</div>
-          ${issuesHtml}
-          ${positivesHtml}
+          ${buildIssuesHtml(fb.issues)}
+          ${buildPositivesHtml(fb.positives)}
         `;
-
-        // Wire hover to shared images panel
-        card.querySelectorAll('.issue[data-issue-index]').forEach(issueEl => {
-          const i = issueEl.dataset.issueIndex;
-          issueEl.addEventListener('mouseenter', () => {
-            imagesCol.querySelectorAll(`.annotation-box[data-issue-index="${i}"]`)
-              .forEach(b => { b.classList.add('highlight'); });
-          });
-          issueEl.addEventListener('mouseleave', () => {
-            imagesCol.querySelectorAll('.annotation-box.highlight')
-              .forEach(b => { b.classList.remove('highlight'); });
-          });
-          issueEl.addEventListener('click', () => {
-            const boxes = imagesCol.querySelectorAll(`.annotation-box[data-issue-index="${i}"]`);
-            if (boxes.length > 0) {
-              const target = boxes[0];
-              const strip = target.closest('.flow-strip');
-              if (strip) {
-                const annContainer = target.closest('.annotation-container');
-                if (annContainer) strip.scrollTo({ left: annContainer.offsetLeft - 8, behavior: 'smooth' });
-              }
-              target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              target.classList.add('flash');
-              target.addEventListener('animationend', () => target.classList.remove('flash'), { once: true });
-            }
-          });
-        });
-
+        wireIssueAnnotationInteractions(card, imagesCol);
         panel.appendChild(card);
-        panelsContainer.appendChild(panel);
       });
 
       wrapper.appendChild(imagesCol);
@@ -1404,35 +1349,14 @@
       container.appendChild(wrapper);
     } else {
       // 1-col: tabbed layout with images per card
-      const tabBar = document.createElement('div');
-      tabBar.className = 'persona-tabs';
-      container.appendChild(tabBar);
-
-      const panelsContainer = document.createElement('div');
-      container.appendChild(panelsContainer);
-
-      feedbackList.forEach((fb, idx) => {
-        const panelId = `panel-${idx}`;
-        const tab = document.createElement('button');
-        tab.className = `persona-tab${idx === 0 ? ' active' : ''}`;
-        tab.dataset.panelId = panelId;
-        tab.innerHTML = `${esc(fb.persona_label)} <span class="tab-score">${fb.score}/10</span>`;
-        tab.onclick = () => switchTab(tab);
-        tabBar.appendChild(tab);
-
-        const panel = document.createElement('div');
-        panel.className = `tab-panel${idx === 0 ? ' active' : ''}`;
-        panel.id = panelId;
-        renderSingleFeedbackCard(panel, fb);
-        panelsContainer.appendChild(panel);
-      });
+      buildTabbedFeedback(container, feedbackList, renderSingleFeedbackCard);
     }
   }
 
   function wireAnnotationTooltips(container) {
     const tooltip = document.getElementById('annTooltip');
     container.querySelectorAll('.annotation-box[data-tip-num]').forEach(box => {
-      box.addEventListener('mouseenter', (e) => {
+      box.addEventListener('mouseenter', () => {
         const sevColors = { high: '#e53e3e', medium: '#d69e2e', low: '#38a169' };
         const sev = box.dataset.tipSev;
         const color = sevColors[sev] || '#888';
@@ -1444,14 +1368,14 @@
         }
         tooltip.innerHTML = html;
         tooltip.classList.add('visible');
-        positionTooltip(e, box);
+        positionTooltip(box);
       });
-      box.addEventListener('mousemove', (e) => positionTooltip(e, box));
+      box.addEventListener('mousemove', () => positionTooltip(box));
       box.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
     });
   }
 
-  function positionTooltip(_e, box) {
+  function positionTooltip(box) {
     const tooltip = document.getElementById('annTooltip');
     const rect = box.getBoundingClientRect();
     // Position above the annotation box, aligned to its left edge
@@ -1493,7 +1417,7 @@
       // Re-build progress UI and send directly
       const personas = getSelectedPersonas();
       if (personas.length > 0) {
-        buildProgressUI(personas);
+        buildProgressUI();
         showState('state-results');
         document.getElementById('btnNewFeedback').style.display = 'none';
       }
@@ -1501,7 +1425,7 @@
     } else {
       const personas = getSelectedPersonas();
       if (personas.length > 0) {
-        buildProgressUI(personas);
+        buildProgressUI();
         showState('state-results');
         document.getElementById('btnNewFeedback').style.display = 'none';
       }

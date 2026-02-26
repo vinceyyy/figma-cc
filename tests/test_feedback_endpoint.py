@@ -4,22 +4,11 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from api.main import app
-from api.models.response import PersonaFeedback
 from tests import TEST_API_KEY
 
+from .conftest import MOCK_FEEDBACK
+
 API_KEY_HEADER = {"X-API-Key": TEST_API_KEY}
-
-
-@pytest.fixture
-def mock_feedback():
-    return PersonaFeedback(
-        persona="first_time_user",
-        persona_label="First-Time User",
-        overall_impression="Looks clean but confusing navigation.",
-        issues=[],
-        positives=["Good colors"],
-        score=7,
-    )
 
 
 @pytest.mark.asyncio
@@ -42,9 +31,9 @@ async def test_get_personas_endpoint():
 
 
 @pytest.mark.asyncio
-async def test_feedback_endpoint(mock_feedback):
+async def test_feedback_endpoint():
     with patch("api.routers.feedback.get_all_feedback", new_callable=AsyncMock) as mock_get:
-        mock_get.return_value = [mock_feedback]
+        mock_get.return_value = [MOCK_FEEDBACK]
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
@@ -91,9 +80,9 @@ async def test_feedback_endpoint_no_personas():
 
 
 @pytest.mark.asyncio
-async def test_feedback_endpoint_multi_frame(mock_feedback):
+async def test_feedback_endpoint_multi_frame():
     with patch("api.routers.feedback.get_all_feedback", new_callable=AsyncMock) as mock_get:
-        mock_get.return_value = [mock_feedback]
+        mock_get.return_value = [MOCK_FEEDBACK]
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
@@ -130,9 +119,9 @@ async def test_feedback_endpoint_multi_frame(mock_feedback):
 
 
 @pytest.mark.asyncio
-async def test_feedback_stream_endpoint(mock_feedback):
+async def test_feedback_stream_endpoint():
     async def mock_stream(*args, **kwargs):
-        yield mock_feedback
+        yield MOCK_FEEDBACK
 
     with patch("api.routers.feedback.stream_all_feedback", return_value=mock_stream()):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -160,10 +149,10 @@ async def test_feedback_stream_endpoint(mock_feedback):
 
 
 @pytest.mark.asyncio
-async def test_stream_emits_persona_start_events(mock_feedback):
+async def test_stream_emits_persona_start_events():
     async def mock_stream(*args, **kwargs):
         yield {"event": "persona-start", "persona_id": "first_time_user", "persona_label": "First-Time User"}
-        yield mock_feedback
+        yield MOCK_FEEDBACK
 
     with patch("api.routers.feedback.stream_all_feedback", return_value=mock_stream()):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:

@@ -282,6 +282,7 @@ ngrok http 8000                                          # expose backend to Fig
 api/
 ├── main.py                  # FastAPI app — CORS, API key middleware, router mounting, /health
 ├── config.py                # pydantic-settings: host, port, api_key, reads .env
+├── logging.py               # Loguru setup, stdlib interception, request logging middleware
 ├── agents/
 │   └── persona_agent.py     # pydantic-ai agent — inline vision, structured output,
 │                            #   parallel execution, SSE streaming generator
@@ -321,12 +322,13 @@ Dockerfile                       # Multi-stage: python:3.13-slim + uv, productio
 
 tests/
 ├── __init__.py              # Shared test constants (TEST_API_KEY)
-├── conftest.py              # Autouse fixture: sets API_KEY for all tests
+├── conftest.py              # Shared fixtures: mock feedback data, agent mocks, API key setup
 ├── test_models.py           # Pydantic model validation and edge cases
 ├── test_personas.py         # Persona definitions and lookup
 ├── test_agent.py            # Agent query with mocked pydantic-ai
 ├── test_feedback_endpoint.py # FastAPI TestClient endpoint tests
-└── test_integration.py      # End-to-end flow tests with mocked agent
+├── test_integration.py      # End-to-end flow tests with mocked agent
+└── test_logging.py          # Logging middleware and request ID tests
 ```
 
 ## Architecture
