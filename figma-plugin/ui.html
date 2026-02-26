@@ -402,6 +402,7 @@
     margin-bottom: 12px;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
   }
   .progress-bar-track {
@@ -482,7 +483,6 @@
       <input type="text" class="api-url-input" id="apiUrl"
              placeholder="https://your-ngrok-url.ngrok-free.dev"
              style="margin-bottom:12px;">
-      <p style="color:#aaa; font-size:10px; margin-top:4px;">Paste the ngrok HTTPS URL from your terminal</p>
       <button class="btn" id="btnConnect">Connect</button>
       <div id="connectError" style="display:none; margin-top:12px;" class="error-msg"></div>
       <div id="connectLoading" style="display:none; margin-top:12px;">
@@ -820,11 +820,7 @@
 
     try {
       // Update progress phase
-      const phaseEl = document.getElementById('progressPhase');
-      if (phaseEl) {
-        phaseEl.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>'
-          + '<span>Sending to backend...</span>';
-      }
+      setProgressPhase('Sending images to backend...');
 
       streamingAbort = new AbortController();
       const resp = await fetch(`${apiUrl}/api/feedback/stream`, {
@@ -842,14 +838,28 @@
         throw new Error(err.detail || `HTTP ${resp.status}`);
       }
 
-      // Update phase to analyzing
-      if (phaseEl) {
-        phaseEl.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>'
-          + '<span>Analyzing your design...</span>';
-      }
+      // Response started — backend is processing
+      setProgressPhase('Waiting for AI to respond...');
+
+      // Create results area (tab bar + panels) alongside progress — results appear incrementally
+      const container = document.getElementById('feedbackCards');
+      const tabBar = document.createElement('div');
+      tabBar.className = 'persona-tabs';
+      tabBar.id = 'personaTabs';
+      tabBar.style.display = 'none'; // hidden until first result
+      container.appendChild(tabBar);
+
+      const loadingTab = document.createElement('span');
+      loadingTab.id = 'loadingTabIndicator';
+      loadingTab.style.cssText = 'display:none;padding:6px 14px;font-size:11px;color:#999;white-space:nowrap;';
+      loadingTab.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin:0 6px 0 0;"></span> Loading...';
+      tabBar.appendChild(loadingTab);
+
+      const panelsContainer = document.createElement('div');
+      panelsContainer.id = 'personaPanels';
+      container.appendChild(panelsContainer);
 
       const allFeedback = [];
-      const errorResults = [];
       let failedCount = 0;
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
@@ -877,6 +887,7 @@
               try {
                 const startData = JSON.parse(jsonStr);
                 updatePersonaProgress(startData.persona_id, 'analyzing');
+                setProgressPhase('AI is analyzing your design...');
               } catch (e) {}
               currentEventType = null;
               continue;
@@ -889,8 +900,30 @@
                 window._progressCompleted = (window._progressCompleted || 0) + 1;
                 updateProgressBar();
                 failedCount++;
-                errorResults.push(errData);
+
+                // Add error tab immediately
+                const panelId = `panel-err-${failedCount}`;
+                const tab = document.createElement('button');
+                tab.className = 'persona-tab';
+                tab.dataset.panelId = panelId;
+                tab.innerHTML = `<span style="color:#c53030">${esc(errData.persona)}</span> <span class="tab-score" style="background:#fde8e8;color:#c53030">Error</span>`;
+                tab.onclick = () => switchTab(tab);
+                tabBar.insertBefore(tab, loadingTab);
+
+                const panel = document.createElement('div');
+                panel.className = 'tab-panel';
+                panel.id = panelId;
+                panel.innerHTML = `<div class="error-msg">${esc(errData.persona)} failed: ${esc(errData.detail)}</div>`;
+                panelsContainer.appendChild(panel);
               } catch (e) {}
+
+              // Update remaining indicator
+              const remaining = personas.length - allFeedback.length - failedCount;
+              if (remaining > 0) {
+                loadingTab.innerHTML = `<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin:0 6px 0 0;"></span> ${remaining} more...`;
+              } else {
+                loadingTab.style.display = 'none';
+              }
               currentEventType = null;
               continue;
             }
@@ -935,66 +968,20 @@
             currentEventType = null;
           }
           if (line.startsWith('event: done')) {
-            // All personas finished
+            loadingTab.style.display = 'none';
           }
         }
       }
 
-      // Streaming complete — remove progress container and build results
+      // Streaming complete
       streamingAbort = null;
       const progressContainer = document.getElementById('progressContainer');
       if (progressContainer) progressContainer.remove();
+      loadingTab.style.display = 'none';
 
-      if (allFeedback.length === 0 && errorResults.length === 0) {
+      if (allFeedback.length === 0 && failedCount === 0) {
         throw new Error('No feedback received from any persona');
       }
-
-      // Build tab bar + panels
-      const container = document.getElementById('feedbackCards');
-      const tabBar = document.createElement('div');
-      tabBar.className = 'persona-tabs';
-      tabBar.id = 'personaTabs';
-      container.appendChild(tabBar);
-
-      const panelsContainer = document.createElement('div');
-      panelsContainer.id = 'personaPanels';
-      container.appendChild(panelsContainer);
-
-      let firstTab = true;
-      allFeedback.forEach((fb, idx) => {
-        const panelId = `panel-${idx}`;
-        const tab = document.createElement('button');
-        tab.className = 'persona-tab' + (firstTab ? ' active' : '');
-        tab.dataset.panelId = panelId;
-        tab.innerHTML = `${esc(fb.persona_label)} <span class="tab-score">${fb.score}/10</span>`;
-        tab.onclick = () => switchTab(tab);
-        tabBar.appendChild(tab);
-
-        const panel = document.createElement('div');
-        panel.className = 'tab-panel' + (firstTab ? ' active' : '');
-        panel.id = panelId;
-        renderSingleFeedbackCard(panel, fb);
-        panelsContainer.appendChild(panel);
-        firstTab = false;
-      });
-
-      // Add error tabs
-      errorResults.forEach((errData, idx) => {
-        const panelId = `panel-err-${idx}`;
-        const tab = document.createElement('button');
-        tab.className = 'persona-tab' + (firstTab ? ' active' : '');
-        tab.dataset.panelId = panelId;
-        tab.innerHTML = `<span style="color:#c53030">${esc(errData.persona)}</span> <span class="tab-score" style="background:#fde8e8;color:#c53030">Error</span>`;
-        tab.onclick = () => switchTab(tab);
-        tabBar.appendChild(tab);
-
-        const panel = document.createElement('div');
-        panel.className = 'tab-panel' + (firstTab ? ' active' : '');
-        panel.id = panelId;
-        panel.innerHTML = `<div class="error-msg">${esc(errData.persona)} failed: ${esc(errData.detail)}</div>`;
-        panelsContainer.appendChild(panel);
-        firstTab = false;
-      });
 
       // Show the "New Analysis" button
       const actionBtn = document.getElementById('btnNewFeedback');
@@ -1017,6 +1004,15 @@
       }
       showState('state-error');
       document.getElementById('errorMsg').textContent = error.message;
+    }
+  }
+
+  // Helper: update progress phase text with spinner
+  function setProgressPhase(text) {
+    const phaseEl = document.getElementById('progressPhase');
+    if (phaseEl) {
+      phaseEl.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>'
+        + '<span>' + esc(text) + '</span>';
     }
   }
 
