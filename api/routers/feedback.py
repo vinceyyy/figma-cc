@@ -73,7 +73,9 @@ async def stream_feedback(request: FeedbackRequest) -> StreamingResponse:
             frames=frames,
             context=request.context,
         ):
-            if isinstance(item, PersonaFeedback):
+            if isinstance(item, dict) and item.get("keepalive"):
+                yield ": keepalive\n\n"
+            elif isinstance(item, PersonaFeedback):
                 logger.debug("SSE: persona {pid} complete", pid=item.persona)
                 yield f"data: {item.model_dump_json()}\n\n"
             elif isinstance(item, dict) and item.get("event") == "persona-start":

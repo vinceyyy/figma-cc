@@ -275,7 +275,18 @@ async def stream_all_feedback(
 
     logger.debug("Starting streaming for {count} personas", count=len(valid_personas))
 
+    _KEEPALIVE: dict = {"keepalive": True}
+
     queue: asyncio.Queue[PersonaFeedback | dict] = asyncio.Queue()
+
+    async def _keepalive() -> None:
+        """Put keepalive markers on the queue every 15 seconds to prevent ALB idle timeout."""
+        try:
+            while True:
+                await asyncio.sleep(15)
+                await queue.put(_KEEPALIVE)
+        except asyncio.CancelledError:
+            pass
 
     async def _run_persona(persona: Persona) -> None:
         await queue.put({"event": "persona-start", "persona_id": persona.id, "persona_label": persona.label})
@@ -287,15 +298,20 @@ async def stream_all_feedback(
             logger.error("Persona '{pid}' failed: {err}", pid=persona.id, err=e)
             await queue.put({"error": True, "persona": persona.id, "detail": str(e)})
 
+    keepalive_task = asyncio.create_task(_keepalive())
     tasks = [asyncio.create_task(_run_persona(p)) for p in valid_personas]
 
     expected = len(valid_personas) * 2  # start event + result/error per persona
     received = 0
     while received < expected:
         item = await queue.get()
+        if item is _KEEPALIVE:
+            yield item
+            continue
         received += 1
         yield item
 
+    keepalive_task.cancel()
     logger.debug("Streaming complete: all {count} personas processed", count=len(valid_personas))
 
     for task in tasks:
