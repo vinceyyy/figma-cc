@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -52,7 +55,7 @@ jobs:
       - run: uv sync --frozen
 
       - name: Run tests with coverage
-        run: uv run pytest tests/ -v --cov=api --cov-report=term-missing --cov-report=xml
+        run: uv run pytest tests/ -v
 
       - name: Upload coverage report
         if: always()
@@ -83,3 +86,8 @@ jobs:
 
       - name: TypeScript check
         run: npx tsc --noEmit
+
+      - name: Verify code.js is up-to-date
+        run: |
+          npx tsc -p tsconfig.json
+          git diff --exit-code code.js

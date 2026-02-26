@@ -15,7 +15,7 @@ app.add_middleware(
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
 )
-app.add_middleware(RequestLoggingMiddleware)  # ty: ignore[invalid-argument-type]
+app.add_middleware(RequestLoggingMiddleware)  # ty: ignore[invalid-argument-type]  # same Starlette issue
 
 app.include_router(feedback_router)
 
