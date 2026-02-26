@@ -3,13 +3,19 @@ figma.showUI(__html__, { width: 560, height: 600 });
 type PluginMessage =
   | { type: "resize"; width?: number; height?: number }
   | { type: "save-backend-url"; url?: string }
+  | { type: "save-api-key"; key?: string }
   | { type: "export-selection" }
   | { type: "cancel" };
 
-// Send saved backend URL to UI on startup
+// Send saved backend URL and API key to UI on startup
 figma.clientStorage.getAsync("backendUrl").then((url) => {
   if (url) {
     figma.ui.postMessage({ type: "saved-backend-url", url });
+  }
+});
+figma.clientStorage.getAsync("apiKey").then((key) => {
+  if (key) {
+    figma.ui.postMessage({ type: "saved-api-key", key });
   }
 });
 
@@ -129,6 +135,10 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
 
     case "save-backend-url":
       figma.clientStorage.setAsync("backendUrl", msg.url);
+      return;
+
+    case "save-api-key":
+      if (msg.key) figma.clientStorage.setAsync("apiKey", msg.key);
       return;
 
     case "export-selection": {

@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     model_name: str = "openai-responses:gpt-5"
     personas_dir: str = "./personas"
     log_level: str = "DEBUG"
+    api_key: str = ""  # Empty = auth disabled (local dev); set to enable API key validation
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
