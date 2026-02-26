@@ -131,7 +131,7 @@ async def get_persona_feedback(
     result = await feedback_agent.run(
         [*image_parts, text_prompt],
         model=settings.model_name,
-        system_prompt=system_prompt,
+        instructions=system_prompt,
     )
 
     return result.output

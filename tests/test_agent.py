@@ -80,9 +80,9 @@ async def test_get_persona_feedback_multi_frame(mock_agent_run):
     call_args = mock_agent_run.run.call_args
     message_parts = call_args.args[0]
     assert len(message_parts) == 3  # 2 images + 1 text
-    # System prompt should mention "multi-screen"
-    system_prompt = call_args.kwargs.get("system_prompt", "")
-    assert "multi-screen" in system_prompt
+    # Instructions should mention "multi-screen"
+    instructions = call_args.kwargs.get("instructions", "")
+    assert "multi-screen" in instructions
 
 
 @pytest.mark.asyncio
