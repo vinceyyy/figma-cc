@@ -190,9 +190,9 @@ Each persona query uses a pydantic-ai `Agent` with structured output:
 feedback_agent = Agent(output_type=PersonaFeedback)
 
 result = await feedback_agent.run(
-    [*image_parts, text_prompt],       # inline images + text
+    [*image_parts, user_prompt],       # inline images + text
     model=settings.model_name,         # configurable via MODEL_NAME env var
-    system_prompt=system_prompt,       # persona-specific + analysis context
+    instructions=instructions,         # persona-specific + analysis context
 )
 return result.output                   # typed PersonaFeedback
 ```

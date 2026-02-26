@@ -43,7 +43,7 @@ def _downscale_if_needed(image_bytes: bytes, max_dim: int = MAX_IMAGE_DIMENSION)
     return buf.getvalue()
 
 
-def _build_prompt(persona: Persona, frames: list[dict], context: str | None) -> str:
+def _build_user_prompt(persona: Persona, frames: list[dict], context: str | None) -> str:
     """Build the text portion of the user prompt."""
     is_flow = len(frames) > 1
 
@@ -93,8 +93,8 @@ def _build_prompt(persona: Persona, frames: list[dict], context: str | None) -> 
     return "\n".join(parts)
 
 
-def _build_system_prompt(persona: Persona, is_flow: bool) -> str:
-    """Build the system prompt combining persona role and analysis context."""
+def _build_instructions(persona: Persona, is_flow: bool) -> str:
+    """Build per-run instructions combining persona role and analysis context."""
     flow_context = (
         "You are evaluating a multi-screen user flow. Analyze transitions, "
         "consistency, and the overall user journey across all screens. "
@@ -123,15 +123,15 @@ async def get_persona_feedback(
         image_bytes = _downscale_if_needed(image_bytes)
         image_parts.append(BinaryContent(data=image_bytes, media_type="image/jpeg"))
 
-    # Build prompts
-    text_prompt = _build_prompt(persona, frames, context)
-    system_prompt = _build_system_prompt(persona, is_flow=len(frames) > 1)
+    # Build user prompt and per-run instructions
+    user_prompt = _build_user_prompt(persona, frames, context)
+    instructions = _build_instructions(persona, is_flow=len(frames) > 1)
 
     # Run agent with inline images + text
     result = await feedback_agent.run(
-        [*image_parts, text_prompt],
+        [*image_parts, user_prompt],
         model=settings.model_name,
-        instructions=system_prompt,
+        instructions=instructions,
     )
 
     return result.output
